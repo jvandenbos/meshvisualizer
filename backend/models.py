@@ -27,7 +27,7 @@ class NodeInfo(BaseModel):
     voltage: Optional[float] = None
     rssi: Optional[int] = None
     snr: Optional[float] = None
-    hop_count: int = 0
+    hop_count: Optional[int] = 0
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     altitude: Optional[float] = None
@@ -42,7 +42,7 @@ class MeshPacket(BaseModel):
     payload: Optional[Dict[str, Any]] = None
     rssi: Optional[int] = None
     snr: Optional[float] = None
-    hop_count: int = 0
+    hop_count: Optional[int] = 0
     channel: int = 0
     timestamp: datetime
 
@@ -55,7 +55,7 @@ class TextMessage(BaseModel):
     timestamp: datetime
     rssi: Optional[int] = None
     snr: Optional[float] = None
-    hop_count: int = 0
+    hop_count: Optional[int] = 0
 
 class NetworkLink(BaseModel):
     from_id: str
