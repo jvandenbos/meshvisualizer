@@ -3,8 +3,13 @@ import NetworkGraph from './components/NetworkGraph';
 import ActiveNodes from './components/ActiveNodes';
 import EventTicker, { Event } from './components/EventTicker';
 import SessionControls from './components/SessionControls';
+import { MapView } from './components/MapView';
+import { PacketInspector } from './components/PacketInspector';
 import { NodeInfo, NetworkLink, TextMessage, Session } from './types';
 import websocketService from './services/websocket';
+import { Network, Map, Terminal } from 'lucide-react';
+
+type ViewMode = 'graph' | 'map' | 'packets';
 
 function App() {
   // State management
@@ -15,6 +20,7 @@ function App() {
   const [messages, setMessages] = useState<TextMessage[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('graph');
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -200,6 +206,12 @@ function App() {
     // Could show tooltip or highlight connections
   }, []);
 
+  // Convert nodes array to Map for MapView
+  const nodesMap = new Map<string, NodeInfo>();
+  nodes.forEach(node => {
+    nodesMap.set(node.id, node);
+  });
+
   return (
     <div className="h-screen flex flex-col bg-gray-900">
       <SessionControls
@@ -212,25 +224,92 @@ function App() {
         onDisconnect={handleDisconnect}
       />
       
-      <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 p-4">
-          <NetworkGraph
-            nodes={nodes}
-            links={links}
-            onNodeClick={handleNodeClick}
-            onNodeHover={handleNodeHover}
-          />
+      {/* View Mode Selector */}
+      <div className="bg-gray-800 border-b border-gray-700 px-4 py-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setViewMode('graph')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-colors ${
+              viewMode === 'graph' 
+                ? 'bg-cyan-600 text-white' 
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            <Network className="h-4 w-4" />
+            <span className="text-sm font-medium">Network Graph</span>
+          </button>
+          <button
+            onClick={() => setViewMode('map')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-colors ${
+              viewMode === 'map' 
+                ? 'bg-cyan-600 text-white' 
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            <Map className="h-4 w-4" />
+            <span className="text-sm font-medium">Coverage Map</span>
+          </button>
+          <button
+            onClick={() => setViewMode('packets')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-colors ${
+              viewMode === 'packets' 
+                ? 'bg-cyan-600 text-white' 
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            <Terminal className="h-4 w-4" />
+            <span className="text-sm font-medium">Packet Inspector</span>
+          </button>
         </div>
-        
-        <ActiveNodes
-          nodes={nodes}
-          selectedNodeId={selectedNodeId}
-          onNodeSelect={handleNodeSelect}
-          localNodeId="1109198442"
-        />
       </div>
       
-      <EventTicker events={events} />
+      <div className="flex-1 flex overflow-hidden">
+        {viewMode === 'graph' && (
+          <>
+            <div className="flex-1 p-4">
+              <NetworkGraph
+                nodes={nodes}
+                links={links}
+                onNodeClick={handleNodeClick}
+                onNodeHover={handleNodeHover}
+              />
+            </div>
+            <ActiveNodes
+              nodes={nodes}
+              selectedNodeId={selectedNodeId}
+              onNodeSelect={handleNodeSelect}
+              localNodeId="1109198442"
+            />
+          </>
+        )}
+        
+        {viewMode === 'map' && (
+          <>
+            <div className="flex-1">
+              <MapView
+                nodes={nodesMap}
+                localNodeId="1109198442"
+                selectedNode={selectedNodeId}
+                onNodeSelect={setSelectedNodeId}
+              />
+            </div>
+            <ActiveNodes
+              nodes={nodes}
+              selectedNodeId={selectedNodeId}
+              onNodeSelect={handleNodeSelect}
+              localNodeId="1109198442"
+            />
+          </>
+        )}
+        
+        {viewMode === 'packets' && (
+          <div className="flex-1">
+            <PacketInspector />
+          </div>
+        )}
+      </div>
+      
+      {viewMode !== 'packets' && <EventTicker events={events} />}
     </div>
   );
 }
