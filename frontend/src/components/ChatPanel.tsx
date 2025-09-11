@@ -6,13 +6,17 @@ import websocketService from '../services/websocket';
 interface ChatPanelProps {
   nodes: NodeInfo[];
   messages: TextMessage[];
+  localNodeId?: string | null;
 }
 
-export const ChatPanel = ({ nodes, messages }: ChatPanelProps) => {
+type Pending = { id: string; text: string; dest: string; timestamp: number };
+
+export const ChatPanel = ({ nodes, messages, localNodeId }: ChatPanelProps) => {
   const [text, setText] = useState('');
   const [dest, setDest] = useState<string>('broadcast');
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [pending, setPending] = useState<Pending[]>([]);
 
   const nodeOptions = useMemo(() => {
     const opts = [{ id: 'broadcast', name: 'Broadcast' }];
@@ -34,7 +38,9 @@ export const ChatPanel = ({ nodes, messages }: ChatPanelProps) => {
     if (!trimmed) return;
     try {
       setIsSending(true);
+      console.log('[Chat] send', { text: trimmed, dest });
       websocketService.sendText(trimmed, dest === 'broadcast' ? undefined : dest);
+      setPending((prev) => [{ id: `${Date.now()}-${Math.random()}`, text: trimmed, dest, timestamp: Date.now() }, ...prev].slice(0, 50));
       setText('');
     } finally {
       setIsSending(false);
@@ -77,13 +83,29 @@ export const ChatPanel = ({ nodes, messages }: ChatPanelProps) => {
         {messages.length === 0 && (
           <div className="text-sm text-gray-500">No messages yet.</div>
         )}
-        {messages.map((m, i) => (
-          <div key={i} className="text-sm text-gray-200">
-            <span className="font-medium text-cyan-300">{m.from_name || m.from_id}</span>
-            <span className="text-gray-400">: </span>
-            <span className="whitespace-pre-wrap break-words">{m.message}</span>
+        {/* Pending (sending) messages from me */}
+        {pending.map((p) => (
+          <div key={p.id} className="text-sm text-gray-400 italic">
+            <span className="font-medium text-cyan-300">You</span>
+            <span className="text-gray-500">: </span>
+            <span className="whitespace-pre-wrap break-words">{p.text}</span>
+            <span className="text-gray-500"> · Sending…</span>
           </div>
         ))}
+        {/* Delivered messages */}
+        {messages.map((m, i) => {
+          const isMine = localNodeId && m.from_id === localNodeId;
+          return (
+            <div key={i} className="text-sm text-gray-200">
+              <span className="font-medium text-cyan-300">{isMine ? 'You' : (m.from_name || m.from_id)}</span>
+              <span className="text-gray-400">: </span>
+              <span className="whitespace-pre-wrap break-words">{m.message}</span>
+              {isMine && (
+                <span className="text-gray-500 text-xs"> · ✓ Delivered {new Date(m.timestamp).toLocaleTimeString()}</span>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Composer */}

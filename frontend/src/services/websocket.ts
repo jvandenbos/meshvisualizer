@@ -106,6 +106,7 @@ class WebSocketService {
   }
 
   sendText(text: string, destination?: string) {
+    console.log('[WebSocket] Sending text', { text, destination });
     this.send('send_text', { text, destination });
   }
 

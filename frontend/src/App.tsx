@@ -53,6 +53,7 @@ function App() {
       addEvent('node_discovered', `Node discovered: ${nodeData.short_name || nodeData.id}`);
     };
     const onTextMessage = (data: TextMessage) => {
+      console.log('[WS] text_message', data);
       setMessages(prev => [...prev.slice(-99), data]);
       addEvent('message', `${data.from_name}: ${data.message.substring(0, 50)}`);
     };
@@ -268,7 +269,7 @@ function App() {
             title="Drag to resize"
           />
           <div className="flex-1 min-h-0 overflow-hidden">
-            <ChatPanel nodes={nodes} messages={messages} />
+            <ChatPanel nodes={nodes} messages={messages} localNodeId={localNodeId || undefined} />
           </div>
         </div>
       </div>
