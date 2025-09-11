@@ -6,6 +6,7 @@ import { NodeDetailsModal } from './components/NodeDetailsModal';
 import { MessagesPanel } from './components/MessagesPanel';
 import { PacketDetailsModal } from './components/PacketDetailsModal';
 import { MapModal } from './components/MapModal';
+import { ChatPanel } from './components/ChatPanel';
 import type { DecodedPacket } from './utils/meshtasticDecoder';
 import { NodeInfo, TextMessage, Session } from './types';
 import websocketService from './services/websocket';
@@ -213,9 +214,14 @@ function App() {
             localNodeId={localNodeId || 'unknown'}
           />
         </div>
-        {/* Right: Messages */}
-        <div className="flex-1 min-h-0">
-          <MessagesPanel onPacketClick={(p) => setPacketModal(p)} onOpenMap={() => setIsMapOpen(true)} />
+        {/* Right: Packets (top) + Chat (bottom) */}
+        <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-[2] min-h-0 border-b border-gray-700">
+            <MessagesPanel onPacketClick={(p) => setPacketModal(p)} onOpenMap={() => setIsMapOpen(true)} />
+          </div>
+          <div className="flex-[1] min-h-0">
+            <ChatPanel nodes={nodes} messages={messages} />
+          </div>
         </div>
       </div>
 
