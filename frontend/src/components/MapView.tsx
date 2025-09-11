@@ -16,10 +16,15 @@ interface MapViewProps {
 }
 
 export const MapView = ({ nodes }: MapViewProps) => {
-  const withPos = Array.from(nodes.values()).filter(n => n.latitude && n.longitude);
-  const center = withPos.length
-    ? [withPos[0].latitude!, withPos[0].longitude!] as [number, number]
-    : [49.2827, -123.1207] as [number, number];
+  const withPos = Array.from(nodes.values()).filter(
+    n => n.latitude !== undefined && n.latitude !== null && n.longitude !== undefined && n.longitude !== null
+  );
+  const center = (() => {
+    if (withPos.length === 0) return [49.2827, -123.1207] as [number, number];
+    const avgLat = withPos.reduce((sum, n) => sum + (n.latitude || 0), 0) / withPos.length;
+    const avgLon = withPos.reduce((sum, n) => sum + (n.longitude || 0), 0) / withPos.length;
+    return [avgLat, avgLon] as [number, number];
+  })();
 
   return (
     <MapContainer center={center} zoom={11} className="h-full w-full">
@@ -33,6 +38,10 @@ export const MapView = ({ nodes }: MapViewProps) => {
             <div className="text-sm">
               <div className="font-semibold">{node.long_name || node.short_name}</div>
               <div className="text-gray-500">{node.id}</div>
+              <div className="text-xs text-gray-400 mt-1">
+                {node.latitude?.toFixed(5)}, {node.longitude?.toFixed(5)}
+                {node.altitude !== undefined && node.altitude !== null ? ` • ${node.altitude} m` : ''}
+              </div>
             </div>
           </Popup>
         </Marker>
@@ -42,4 +51,3 @@ export const MapView = ({ nodes }: MapViewProps) => {
 };
 
 export default MapView;
-
