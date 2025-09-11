@@ -2,15 +2,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Download, Pause, Play, Terminal, ChevronRight, ChevronDown, Copy } from 'lucide-react';
 import websocketService from '../services/websocket';
 import MeshtasticDecoder, { DecodedPacket } from '../utils/meshtasticDecoder';
+import { NodeInfo } from '../types';
+import { resolveName, AliasMap } from '../utils/nameResolver';
 
 type TabKey = 'ALL' | 'TEXT_MESSAGE' | 'TELEMETRY' | 'POSITION' | 'NODEINFO' | 'ROUTING' | 'ADMIN' | 'UNKNOWN';
 
 interface MessagesPanelProps {
   onPacketClick?: (packet: DecodedPacket) => void;
   onOpenMap?: () => void;
+  nodes?: NodeInfo[];
+  aliases?: AliasMap;
 }
 
-export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onOpenMap }) => {
+export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onOpenMap, nodes, aliases }) => {
   const [packets, setPackets] = useState<DecodedPacket[]>([]);
   const [filterTab, setFilterTab] = useState<TabKey>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -171,10 +175,10 @@ export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onO
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <span className="text-gray-400">From:</span>
-                        <span className="font-mono text-cyan-400">{p.from}</span>
+                        <span className="text-cyan-400">{resolveName(p.from, nodes, aliases, p.from)}</span>
                         <span className="text-gray-400">→</span>
                         <span className="text-gray-400">To:</span>
-                        <span className="font-mono text-cyan-400">{p.to}</span>
+                        <span className="text-cyan-400">{resolveName(p.to, nodes, aliases, p.to)}</span>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                         {p.rssi !== undefined && <span>RSSI: {p.rssi} dBm</span>}

@@ -126,7 +126,7 @@ const ActiveNodes = ({
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <h3 className="font-medium text-white">
-                    {node.short_name}
+                    {node.long_name || node.short_name}
                     {node.id === localNodeId && (
                       <span className="ml-2 text-xs bg-cyan-600 text-white px-1.5 py-0.5 rounded">MY NODE</span>
                     )}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import type { AliasMap } from './utils/nameResolver';
 import ActiveNodes from './components/ActiveNodes';
 import EventTicker, { Event } from './components/EventTicker';
 import SessionControls from './components/SessionControls';
@@ -25,6 +26,7 @@ function App() {
   const rightPaneRef = useRef<HTMLDivElement | null>(null);
   const [topHeight, setTopHeight] = useState<number>(300);
   const [isDragging, setIsDragging] = useState(false);
+  const [aliases, setAliases] = useState<AliasMap>({});
 
   // Connect once and register event handlers with cleanup to avoid duplicates
   useEffect(() => {
@@ -107,6 +109,19 @@ function App() {
       }
     };
     fetchStatus();
+    // Load optional aliases
+    const fetchAliases = async () => {
+      try {
+        const r = await fetch('/aliases.json');
+        if (r.ok) {
+          const a = await r.json();
+          setAliases(a || {});
+        }
+      } catch {
+        // ignore if missing
+      }
+    };
+    fetchAliases();
   }, []);
 
   // Initialize top height relative to pane size and update on resize
@@ -261,7 +276,7 @@ function App() {
         {/* Right: Packets (top) + Chat (bottom) with resizable divider */}
         <div ref={rightPaneRef} className="flex-1 min-h-0 flex flex-col">
           <div className="min-h-0 border-b border-gray-700 overflow-hidden" style={{ height: topHeight }}>
-            <MessagesPanel onPacketClick={(p) => setPacketModal(p)} onOpenMap={() => setIsMapOpen(true)} />
+            <MessagesPanel onPacketClick={(p) => setPacketModal(p)} onOpenMap={() => setIsMapOpen(true)} nodes={nodes} aliases={aliases} />
           </div>
           <div
             className={`h-2 bg-gray-800 border-y border-gray-700 ${isDragging ? 'cursor-row-resize bg-gray-700' : 'cursor-row-resize'} `}

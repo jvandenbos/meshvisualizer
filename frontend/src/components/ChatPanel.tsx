@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Send, UserCircle2 } from 'lucide-react';
 import { TextMessage, NodeInfo } from '../types';
+import { resolveName } from '../utils/nameResolver';
 import websocketService from '../services/websocket';
 
 interface ChatPanelProps {
@@ -97,7 +98,7 @@ export const ChatPanel = ({ nodes, messages, localNodeId }: ChatPanelProps) => {
           const isMine = localNodeId && m.from_id === localNodeId;
           return (
             <div key={i} className="text-sm text-gray-200">
-              <span className="font-medium text-cyan-300">{isMine ? 'You' : (m.from_name || m.from_id)}</span>
+              <span className="font-medium text-cyan-300">{isMine ? 'You' : resolveName(m.from_id, nodes, undefined, m.from_name || m.from_id)}</span>
               <span className="text-gray-400">: </span>
               <span className="whitespace-pre-wrap break-words">{m.message}</span>
               {isMine && (
