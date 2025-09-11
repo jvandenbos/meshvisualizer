@@ -26,78 +26,73 @@ function App() {
   const [topHeight, setTopHeight] = useState<number>(300);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Initialize WebSocket connection
+  // Connect once and register event handlers with cleanup to avoid duplicates
   useEffect(() => {
-    connectWebSocket();
+    websocketService.connect().catch((error) => {
+      console.error('Failed to connect:', error);
+      addEvent('connection', 'Failed to connect to server');
+    });
+
+    const onConnected = () => {
+      setIsConnected(true);
+      addEvent('connection', 'Connected to server');
+    };
+    const onDisconnected = () => {
+      setIsConnected(false);
+      addEvent('connection', 'Disconnected from server');
+    };
+    const onInitial = (data: any) => {
+      console.log('Received initial_state with', data.nodes?.length || 0, 'nodes');
+      if (data.session) setSession(data.session);
+      if (data.nodes) setNodes(data.nodes);
+      if (data.messages) setMessages(data.messages);
+    };
+    const onNodeInfo = (data: any) => {
+      const nodeData = data.node || data;
+      updateNode(nodeData);
+      addEvent('node_discovered', `Node discovered: ${nodeData.short_name || nodeData.id}`);
+    };
+    const onTextMessage = (data: TextMessage) => {
+      setMessages(prev => [...prev.slice(-99), data]);
+      addEvent('message', `${data.from_name}: ${data.message.substring(0, 50)}`);
+    };
+    const onPosition = (data: any) => {
+      updateNodePosition(data.node_id, data.latitude, data.longitude, data.altitude);
+      addEvent('position', `Position update: ${data.node_id}`);
+    };
+    const onTelemetry = (data: any) => {
+      updateNodeTelemetry(data.node_id, data.device_metrics);
+      addEvent('telemetry', `Telemetry: ${data.node_id}`);
+    };
+    const onSessionReset = (data: any) => {
+      setSession(data.session);
+      setNodes([]);
+      setMessages([]);
+      setEvents([]);
+      addEvent('connection', 'Session reset');
+    };
+
+    websocketService.on('connected', onConnected);
+    websocketService.on('disconnected', onDisconnected);
+    websocketService.on('initial_state', onInitial);
+    websocketService.on('node_info', onNodeInfo);
+    websocketService.on('text_message', onTextMessage);
+    websocketService.on('position_update', onPosition);
+    websocketService.on('telemetry', onTelemetry);
+    websocketService.on('session_reset', onSessionReset);
 
     return () => {
+      websocketService.off('connected', onConnected);
+      websocketService.off('disconnected', onDisconnected);
+      websocketService.off('initial_state', onInitial);
+      websocketService.off('node_info', onNodeInfo);
+      websocketService.off('text_message', onTextMessage);
+      websocketService.off('position_update', onPosition);
+      websocketService.off('telemetry', onTelemetry);
+      websocketService.off('session_reset', onSessionReset);
       websocketService.disconnect();
     };
   }, []);
-
-  const connectWebSocket = async () => {
-    try {
-      await websocketService.connect();
-      
-      // Set up event listeners
-      websocketService.on('connected', () => {
-        setIsConnected(true);
-        addEvent('connection', 'Connected to server');
-      });
-
-      websocketService.on('disconnected', () => {
-        setIsConnected(false);
-        addEvent('connection', 'Disconnected from server');
-      });
-
-      websocketService.on('initial_state', (data: any) => {
-        console.log('Received initial_state with', data.nodes?.length || 0, 'nodes');
-        if (data.session) setSession(data.session);
-        if (data.nodes) {
-          console.log('Setting nodes:', data.nodes);
-          setNodes(data.nodes);
-        }
-        if (data.messages) setMessages(data.messages);
-        // links not used in simplified UI
-      });
-
-      websocketService.on('node_info', (data: any) => {
-        console.log('Received node_info:', data);
-        const nodeData = data.node || data;
-        updateNode(nodeData);
-        addEvent('node_discovered', `Node discovered: ${nodeData.short_name || nodeData.id}`);
-      });
-
-      websocketService.on('text_message', (data: TextMessage) => {
-        setMessages(prev => [...prev.slice(-99), data]);
-        addEvent('message', `${data.from_name}: ${data.message.substring(0, 50)}`);
-      });
-
-      websocketService.on('position_update', (data: any) => {
-        updateNodePosition(data.node_id, data.latitude, data.longitude, data.altitude);
-        addEvent('position', `Position update: ${data.node_id}`);
-      });
-
-      websocketService.on('telemetry', (data: any) => {
-        updateNodeTelemetry(data.node_id, data.device_metrics);
-        addEvent('telemetry', `Telemetry: ${data.node_id}`);
-      });
-
-      // network_link events ignored in simplified UI
-
-      websocketService.on('session_reset', (data: any) => {
-        setSession(data.session);
-        setNodes([]);
-        setMessages([]);
-        setEvents([]);
-        addEvent('connection', 'Session reset');
-      });
-
-    } catch (error) {
-      console.error('Failed to connect:', error);
-      addEvent('connection', 'Failed to connect to server');
-    }
-  };
 
   // Fetch device status to get local node ID
   useEffect(() => {

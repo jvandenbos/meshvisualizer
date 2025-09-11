@@ -73,26 +73,15 @@ export const ChatPanel = ({ nodes, messages }: ChatPanelProps) => {
       </div>
 
       {/* Messages Stream */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-1">
         {messages.length === 0 && (
           <div className="text-sm text-gray-500">No messages yet.</div>
         )}
         {messages.map((m, i) => (
-          <div key={i} className="bg-gray-800 border border-gray-700 rounded p-2">
-            <div className="flex items-center justify-between text-xs text-gray-400">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-cyan-400">{m.from_name || m.from_id}</span>
-                <span>→</span>
-                <span className="font-mono text-cyan-400">{m.to_name || m.to_id}</span>
-              </div>
-              <span>{new Date(m.timestamp).toLocaleTimeString()}</span>
-            </div>
-            <div className="mt-1 text-gray-200 whitespace-pre-wrap break-words">{m.message}</div>
-            <div className="mt-1 text-[11px] text-gray-500 flex items-center gap-3">
-              {m.rssi !== undefined && <span>RSSI: {m.rssi} dBm</span>}
-              {m.snr !== undefined && <span>SNR: {m.snr} dB</span>}
-              {m.hop_count !== undefined && <span>Hops: {m.hop_count}</span>}
-            </div>
+          <div key={i} className="text-sm text-gray-200">
+            <span className="font-medium text-cyan-300">{m.from_name || m.from_id}</span>
+            <span className="text-gray-400">: </span>
+            <span className="whitespace-pre-wrap break-words">{m.message}</span>
           </div>
         ))}
       </div>
@@ -122,4 +111,3 @@ export const ChatPanel = ({ nodes, messages }: ChatPanelProps) => {
 };
 
 export default ChatPanel;
-
