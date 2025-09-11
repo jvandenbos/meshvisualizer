@@ -193,23 +193,51 @@ function App() {
   };
 
   const updateNodePosition = (nodeId: string, lat?: number, lon?: number, alt?: number) => {
-    setNodes(prev => prev.map(node => 
-      node.id === nodeId 
-        ? { ...node, latitude: lat, longitude: lon, altitude: alt }
-        : node
-    ));
+    setNodes(prev => {
+      const idx = prev.findIndex(n => n.id === nodeId);
+      if (idx >= 0) {
+        return prev.map(node => node.id === nodeId ? { ...node, latitude: lat, longitude: lon, altitude: alt } : node);
+      }
+      // Create minimal node if not present so it appears on map
+      const minimal: NodeInfo = {
+        id: nodeId,
+        short_name: `Node-${String(nodeId).slice(0,8)}`,
+        long_name: undefined,
+        hardware_model: undefined,
+        role: 'CLIENT',
+        battery_level: undefined,
+        voltage: undefined,
+        rssi: undefined,
+        snr: undefined,
+        hop_count: 999,
+        latitude: lat,
+        longitude: lon,
+        altitude: alt,
+        last_heard: new Date().toISOString(),
+        is_online: true,
+        signal_quality: undefined
+      };
+      return [...prev, minimal];
+    });
   };
 
   const updateNodeTelemetry = (nodeId: string, metrics: any) => {
-    setNodes(prev => prev.map(node => 
-      node.id === nodeId 
-        ? { 
-            ...node, 
-            battery_level: metrics.batteryLevel,
-            voltage: metrics.voltage
-          }
-        : node
-    ));
+    setNodes(prev => {
+      const idx = prev.findIndex(n => n.id === nodeId);
+      if (idx >= 0) {
+        return prev.map(node => node.id === nodeId ? { ...node, battery_level: metrics.batteryLevel, voltage: metrics.voltage } : node);
+      }
+      const minimal: NodeInfo = {
+        id: nodeId,
+        short_name: `Node-${String(nodeId).slice(0,8)}`,
+        hop_count: 999,
+        is_online: true,
+        last_heard: new Date().toISOString(),
+        battery_level: metrics.batteryLevel,
+        voltage: metrics.voltage
+      } as NodeInfo;
+      return [...prev, minimal];
+    });
   };
 
   const handleNewSession = async () => {

@@ -207,6 +207,12 @@ async def handle_position_update(data: Dict):
         state.live_nodes[node_id] = node
         logger.info(f"   ✅ Added to live_nodes from position: {node_id[:8]}, total nodes: {len(state.live_nodes)}")
         await state.db.upsert_node(node)
+        # Also broadcast a node_info so clients create this node immediately
+        await broadcast_to_clients({
+            "type": "node_info",
+            "data": {"node": node.dict(), "hop_count": node.hop_count},
+            "timestamp": datetime.now()
+        })
 
 async def handle_telemetry(data: Dict):
     """Handle telemetry update"""
