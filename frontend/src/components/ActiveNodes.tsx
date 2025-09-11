@@ -25,6 +25,24 @@ const ActiveNodes = ({
     return 'text-red-500';
   };
 
+  const estimateRangeFromRssi = (rssi?: number | null): { meters: number; pct: number } | null => {
+    if (rssi === undefined || rssi === null) return null;
+    const maxRange = 5000; // 5 km nominal
+    const minRSSI = -130;
+    const maxRSSI = -50;
+    let normalized = (rssi - minRSSI) / (maxRSSI - minRSSI);
+    if (!isFinite(normalized)) normalized = 0;
+    normalized = Math.max(0, Math.min(1, normalized));
+    const meters = maxRange * Math.pow(normalized, 2);
+    return { meters, pct: normalized };
+  };
+
+  const formatDistance = (m: number) => {
+    if (m >= 1000) return `${(m / 1000).toFixed(1)} km`;
+    if (m >= 100) return `${Math.round(m / 10) * 10} m`;
+    return `${Math.round(m)} m`;
+  };
+
   const formatLastHeard = (timestamp: string) => {
     const date = new Date(timestamp);
     const now = new Date();
@@ -119,6 +137,27 @@ const ActiveNodes = ({
                     compact={true} 
                   />
                 </div>
+
+                {/* Direct link estimated distance bar */}
+                {node.hop_count === 1 && node.rssi !== undefined && (
+                  <div className="mt-2">
+                    {(() => {
+                      const est = estimateRangeFromRssi(node.rssi);
+                      if (!est) return null;
+                      return (
+                        <div>
+                          <div className="h-1.5 bg-gray-700 rounded overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-cyan-500 via-cyan-400 to-cyan-300"
+                              style={{ width: `${Math.max(4, est.pct * 100)}%` }}
+                            />
+                          </div>
+                          <div className="text-[11px] text-gray-400 mt-1">Est. range: ~{formatDistance(est.meters)}</div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
                 
                 {node.long_name && (
                   <p className="text-xs text-gray-400 mt-1">{node.long_name}</p>

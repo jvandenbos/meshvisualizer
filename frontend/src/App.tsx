@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import ActiveNodes from './components/ActiveNodes';
 import EventTicker, { Event } from './components/EventTicker';
 import SessionControls from './components/SessionControls';
@@ -22,6 +22,9 @@ function App() {
   const [localNodeId, setLocalNodeId] = useState<string | null>(null);
   const [packetModal, setPacketModal] = useState<DecodedPacket | null>(null);
   const [isMapOpen, setIsMapOpen] = useState(false);
+  const rightPaneRef = useRef<HTMLDivElement | null>(null);
+  const [topHeight, setTopHeight] = useState<number>(300);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -109,6 +112,51 @@ function App() {
     };
     fetchStatus();
   }, []);
+
+  // Initialize top height relative to pane size and update on resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (!rightPaneRef.current) return;
+      const rect = rightPaneRef.current.getBoundingClientRect();
+      const total = rect.height;
+      const minTop = 160;
+      const minBottom = 140;
+      let desired = Math.max(minTop, Math.min(topHeight, total - minBottom));
+      if (topHeight === 300) {
+        // First-run heuristic ~ 65%
+        desired = Math.max(minTop, Math.min(total * 0.65, total - minBottom));
+      }
+      setTopHeight(desired);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const onDividerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDragging(true);
+    e.preventDefault();
+    const startY = e.clientY;
+    const pane = rightPaneRef.current;
+    if (!pane) return;
+    const rect = pane.getBoundingClientRect();
+    const startHeight = topHeight;
+    const onMove = (ev: MouseEvent) => {
+      const delta = ev.clientY - startY;
+      const total = rect.height;
+      const minTop = 160;
+      const minBottom = 140;
+      let newHeight = Math.max(minTop, Math.min(startHeight + delta, total - minBottom));
+      setTopHeight(newHeight);
+    };
+    const onUp = () => {
+      setIsDragging(false);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
 
   const addEvent = (type: Event['type'], text: string) => {
     const event: Event = {
@@ -214,12 +262,17 @@ function App() {
             localNodeId={localNodeId || 'unknown'}
           />
         </div>
-        {/* Right: Packets (top) + Chat (bottom) */}
-        <div className="flex-1 min-h-0 flex flex-col">
-          <div className="flex-[2] min-h-0 border-b border-gray-700">
+        {/* Right: Packets (top) + Chat (bottom) with resizable divider */}
+        <div ref={rightPaneRef} className="flex-1 min-h-0 flex flex-col">
+          <div className="min-h-0 border-b border-gray-700 overflow-hidden" style={{ height: topHeight }}>
             <MessagesPanel onPacketClick={(p) => setPacketModal(p)} onOpenMap={() => setIsMapOpen(true)} />
           </div>
-          <div className="flex-[1] min-h-0">
+          <div
+            className={`h-2 bg-gray-800 border-y border-gray-700 ${isDragging ? 'cursor-row-resize bg-gray-700' : 'cursor-row-resize'} `}
+            onMouseDown={onDividerMouseDown}
+            title="Drag to resize"
+          />
+          <div className="flex-1 min-h-0 overflow-hidden">
             <ChatPanel nodes={nodes} messages={messages} />
           </div>
         </div>
