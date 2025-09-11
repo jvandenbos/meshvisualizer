@@ -169,6 +169,52 @@ async def handle_text_message(data: Dict):
     # Save to database
     await state.db.save_message(message)
 
+    # Update hop/signal on sender node when available so UI can show correct hops
+    try:
+        sender_id = message.from_id
+        rssi = data.get("rssi")
+        snr = data.get("snr")
+        hops = data.get("hop_count")
+        now_ts = message.timestamp
+        if sender_id:
+            if sender_id in state.live_nodes:
+                node = state.live_nodes[sender_id]
+            else:
+                node = NodeInfo(
+                    id=sender_id,
+                    short_name=f"Node-{sender_id[:8]}",
+                    last_heard=now_ts,
+                    is_online=True,
+                    hop_count=999
+                )
+                state.live_nodes[sender_id] = node
+
+            if hops is not None:
+                node.hop_count = hops
+            if rssi is not None:
+                node.rssi = rssi
+                # Recalculate signal quality
+                if rssi > -75:
+                    node.signal_quality = "excellent"
+                elif rssi > -85:
+                    node.signal_quality = "good"
+                elif rssi > -95:
+                    node.signal_quality = "weak"
+                else:
+                    node.signal_quality = "poor"
+            if snr is not None:
+                node.snr = snr
+            node.last_heard = now_ts
+            await state.db.upsert_node(node)
+            # Notify clients so UI can refresh hop badges
+            await broadcast_to_clients({
+                "type": "node_info",
+                "data": {"node": node.dict(), "hop_count": node.hop_count},
+                "timestamp": now_ts
+            })
+    except Exception as e:
+        logger.error(f"Failed to update node from text_message: {e}")
+
 async def handle_position_update(data: Dict):
     """Handle position update"""
     node_id = data["node_id"]
@@ -312,6 +358,50 @@ async def handle_mesh_packet(data: Dict):
     )
     
     await state.db.save_packet(packet)
+
+    # Update sender node hop/signal data when available
+    try:
+        sender_id = packet.from_id
+        rssi = data.get("rssi")
+        snr = data.get("snr")
+        hops = data.get("hop_count")
+        now_ts = packet.timestamp
+        if sender_id:
+            if sender_id in state.live_nodes:
+                node = state.live_nodes[sender_id]
+            else:
+                node = NodeInfo(
+                    id=sender_id,
+                    short_name=f"Node-{sender_id[:8]}",
+                    last_heard=now_ts,
+                    is_online=True,
+                    hop_count=999
+                )
+                state.live_nodes[sender_id] = node
+
+            if hops is not None:
+                node.hop_count = hops
+            if rssi is not None:
+                node.rssi = rssi
+                if rssi > -75:
+                    node.signal_quality = "excellent"
+                elif rssi > -85:
+                    node.signal_quality = "good"
+                elif rssi > -95:
+                    node.signal_quality = "weak"
+                else:
+                    node.signal_quality = "poor"
+            if snr is not None:
+                node.snr = snr
+            node.last_heard = now_ts
+            await state.db.upsert_node(node)
+            await broadcast_to_clients({
+                "type": "node_info",
+                "data": {"node": node.dict(), "hop_count": node.hop_count},
+                "timestamp": now_ts
+            })
+    except Exception as e:
+        logger.error(f"Failed to update node from mesh_packet: {e}")
 
 async def broadcast_to_clients(message: Dict):
     """Broadcast message to all connected WebSocket clients"""
