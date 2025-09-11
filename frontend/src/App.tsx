@@ -305,7 +305,7 @@ function App() {
       )}
 
       {isMapOpen && (
-        <MapModal nodes={nodes} onClose={() => setIsMapOpen(false)} />
+        <MapModal nodes={nodes} onClose={() => setIsMapOpen(false)} localNodeId={localNodeId} />
       )}
     </div>
   );

@@ -184,7 +184,29 @@ async def handle_position_update(data: Dict):
         
         await state.db.upsert_node(state.live_nodes[node_id])
     else:
-        logger.info(f"   ⚠️ Position update for unknown node: {node_id[:8]} - ignoring")
+        # Create a minimal node so we can display it on the map
+        logger.info(f"   ➕ Creating node from position update: {node_id[:8]}")
+        node = NodeInfo(
+            id=node_id,
+            short_name=f"Node-{node_id[:8]}",
+            long_name=None,
+            hardware_model=None,
+            role="CLIENT",
+            battery_level=None,
+            voltage=None,
+            rssi=None,
+            snr=None,
+            hop_count=999,
+            latitude=data.get("latitude"),
+            longitude=data.get("longitude"),
+            altitude=data.get("altitude"),
+            last_heard=data["timestamp"],
+            is_online=True,
+            signal_quality=None
+        )
+        state.live_nodes[node_id] = node
+        logger.info(f"   ✅ Added to live_nodes from position: {node_id[:8]}, total nodes: {len(state.live_nodes)}")
+        await state.db.upsert_node(node)
 
 async def handle_telemetry(data: Dict):
     """Handle telemetry update"""
