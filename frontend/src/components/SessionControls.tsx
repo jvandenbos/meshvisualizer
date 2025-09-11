@@ -1,4 +1,4 @@
-import React from 'react';
+import type { FC } from 'react';
 import { PlayCircle, StopCircle, RefreshCw, Activity, Users, MessageSquare } from 'lucide-react';
 import { Session } from '../types';
 
@@ -12,7 +12,7 @@ interface SessionControlsProps {
   onDisconnect: () => void;
 }
 
-const SessionControls: React.FC<SessionControlsProps> = ({
+const SessionControls: FC<SessionControlsProps> = ({
   session,
   isConnected,
   nodeCount,

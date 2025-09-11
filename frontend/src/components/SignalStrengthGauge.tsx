@@ -1,4 +1,4 @@
-import React from 'react';
+import type { FC } from 'react';
 
 interface SignalStrengthGaugeProps {
   rssi?: number | null;
@@ -6,7 +6,7 @@ interface SignalStrengthGaugeProps {
   compact?: boolean;
 }
 
-const SignalStrengthGauge: React.FC<SignalStrengthGaugeProps> = ({ rssi, quality, compact = false }) => {
+const SignalStrengthGauge: FC<SignalStrengthGaugeProps> = ({ rssi, quality, compact = false }) => {
   // Calculate bars based on RSSI or quality
   const getBars = () => {
     if (quality) {

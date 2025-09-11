@@ -1,6 +1,6 @@
 # Meshtastic Network Visualizer
 
-A real-time network visualizer for Meshtastic mesh networks featuring force-directed graph visualization, session management, and live updates with <100ms response times.
+A real-time network visualizer for Meshtastic mesh networks featuring a streamlined two-panel interface (nodes + messages), session management, and live updates with <100ms response times.
 
 ![Meshtastic Visualizer](https://img.shields.io/badge/Meshtastic-Visualizer-cyan)
 ![Python](https://img.shields.io/badge/Python-3.8+-blue)
@@ -10,20 +10,16 @@ A real-time network visualizer for Meshtastic mesh networks featuring force-dire
 ## Features
 
 ### 🎯 Core Features
-- **Force-Directed Graph**: Dynamic network topology visualization (not radar/radial)
+- **Two-Panel UI**: Nodes on the left, live messages on the right
 - **Real-time Updates**: <100ms response time for all network events
 - **Session Management**: View only current session data, with everything archived to SQLite
-- **Live Animations**: Node discovery fade-ins, packet flow tracers, connection pulses
+- **Bottom Ticker**: Scrolling activity ticker for quick awareness
 
 ### 📊 Visualization
-- **Color-coded Signal Strength**: 
-  - 🟢 Green: Excellent (>-75dBm)
-  - 🟡 Yellow: Good (-75 to -85dBm)
-  - 🟠 Orange: Weak (-85 to -95dBm)
-  - 🔴 Red: Poor (<-95dBm)
-- **Battery Status**: Visual indicators for power levels
-- **Network Topology**: Direct vs multi-hop connections
-- **Active Nodes Sidebar**: Live list sorted by activity
+- **Color-coded Signal Strength** (RSSI/SNR + gauge)
+- **Battery Status** and voltage
+- **Hop awareness**: LOCAL/DIRECT/⟨N⟩ HOPS with unknown handling
+- **Active Nodes panel**: Beautiful, human-readable node list with detail modal
 - **Event Ticker**: Scrolling feed of network events
 
 ### 📡 Device Support
@@ -86,16 +82,16 @@ npm run dev
 5. Use **"New Session"** to clear the display and start fresh
 
 ### Controls
-- **Click nodes** to select and view details
-- **Hover nodes** for quick information
-- **Zoom/Pan** the network graph
+- **Click nodes** to open a detailed node modal (request telemetry/position)
+- **Filter messages** by type (Messages, Telemetry, Position, NodeInfo)
+- **Inspect packets** via popup with human-readable decode and raw JSON
 - **Event ticker** shows real-time activity
 
 ## Architecture
 
 ### Technology Stack
 - **Backend**: FastAPI + WebSocket + Python Meshtastic API
-- **Frontend**: React + TypeScript + Cytoscape.js (WebGPU renderer)
+- **Frontend**: React + TypeScript + Tailwind CSS
 - **Database**: SQLite with session-based architecture
 - **Real-time**: WebSocket for <100ms updates
 
@@ -109,7 +105,7 @@ meshtastic-visualizer/
 │   └── models.py        # Data models
 ├── frontend/            # React application
 │   └── src/
-│       ├── components/  # UI components
+│       ├── components/  # UI components (ActiveNodes, MessagesPanel, modals)
 │       ├── services/    # WebSocket service
 │       └── App.tsx      # Main app
 ├── requirements.txt     # Python dependencies
@@ -190,7 +186,6 @@ MIT License - See LICENSE file for details
 ## Acknowledgments
 
 - Meshtastic project for the amazing mesh networking platform
-- Cytoscape.js team for the powerful graph visualization library
 - FastAPI for the high-performance Python web framework
 
 ## Support

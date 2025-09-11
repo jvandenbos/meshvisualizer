@@ -1,6 +1,5 @@
-import React from 'react';
 import { NodeInfo } from '../types';
-import { Battery, Radio, Router, WifiOff, Wifi } from 'lucide-react';
+import { Battery, Radio } from 'lucide-react';
 import SignalStrengthGauge from './SignalStrengthGauge';
 
 interface ActiveNodesProps {
@@ -10,26 +9,13 @@ interface ActiveNodesProps {
   localNodeId?: string;
 }
 
-const ActiveNodes: React.FC<ActiveNodesProps> = ({ 
+const ActiveNodes = ({ 
   nodes, 
   selectedNodeId, 
   onNodeSelect,
   localNodeId = '1109198442'  // Default to known local node
-}) => {
-  const getSignalIcon = (quality?: string) => {
-    switch (quality) {
-      case 'excellent':
-        return <Wifi className="w-4 h-4 text-green-500" />;
-      case 'good':
-        return <Wifi className="w-4 h-4 text-yellow-500" />;
-      case 'weak':
-        return <Radio className="w-4 h-4 text-orange-500" />;
-      case 'poor':
-        return <WifiOff className="w-4 h-4 text-red-500" />;
-      default:
-        return <Radio className="w-4 h-4 text-gray-500" />;
-    }
-  };
+}: ActiveNodesProps) => {
+  // reserved for future iconography if needed
 
   const getBatteryColor = (level?: number) => {
     if (!level) return 'text-gray-500';
@@ -78,7 +64,7 @@ const ActiveNodes: React.FC<ActiveNodesProps> = ({
   });
 
   return (
-    <div className="w-80 bg-gray-800 border-l border-gray-700 overflow-hidden flex flex-col">
+    <div className="w-full bg-gray-800 overflow-hidden flex flex-col min-h-0">
       <div className="p-4 border-b border-gray-700 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-white">Active Nodes</h2>
         <div className="flex items-center gap-2 text-sm text-gray-400">

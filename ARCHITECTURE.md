@@ -2,7 +2,7 @@
 
 ## **Recommended Technology Stack**
 - **Backend**: FastAPI + WebSocket for real-time data streaming
-- **Frontend**: React + TypeScript + Cytoscape.js (WebGPU renderer)
+- **Frontend**: React + TypeScript + Tailwind CSS
 - **Database**: SQLite with session-based architecture
 - **Meshtastic Integration**: Python `meshtastic.serial_interface` with PubSub callbacks
 
@@ -15,14 +15,14 @@
 - **Real-time Events**: PubSub system for node discovery, messages, telemetry
 
 ### **2. Visualization Layer** 
-- **Force-Directed Graph**: Cytoscape.js with WebGPU for 50+ nodes
-- **Animation System**: Node discovery fade-ins, packet flow tracers, connection pulses
+- **Two-Panel UI**: Left panel for Active Nodes, right panel for Messages
+- **Bottom Ticker**: Scrolling activity ticker
 - **Color Psychology**: Green(excellent) → Yellow(good) → Orange(weak) → Red(poor) signal
-- **Interactive Features**: Hover tooltips, click handlers, time scrubber
+- **Interactive Features**: Node details modal; packet details modal with human-readable decode
 
 ### **3. UI Components**
-- **Main Topology View**: Center stage force-directed graph
-- **Live Sidebar**: Active nodes sorted by activity 
+- **Active Nodes Panel**: Left-side list sorted by hop/activity 
+- **Messages Panel**: Right-side live stream with type filters
 - **Event Ticker**: Scrolling live events (messages, discoveries)
 - **Session Controls**: Start/reset session functionality
 
@@ -35,9 +35,9 @@
 4. WebSocket real-time data pipeline
 
 ### **Phase 2**: Live Visualization (Days 3-4)
-1. Force-directed graph with node discovery animations  
+1. Two-panel layout (Nodes + Messages)  
 2. Color-coded signal strength/battery visualization
-3. Interactive hover/click features
+3. Node details & packet details modals
 4. Session start/reset functionality
 
 ### **Phase 3**: Advanced Features (Days 5-6)
@@ -55,7 +55,7 @@
 ## **Key Technical Decisions**
 - **Session-based data**: UI only shows current session, everything archived to SQLite
 - **Real-time architecture**: WebSocket + PubSub for <100ms updates
-- **Cytoscape.js WebGPU**: Future-proof, handles massive networks
+- **Two-panel UX**: Clear separation of topology list vs message stream
 - **Python backend**: Direct Meshtastic API integration, familiar ecosystem
 
 ## **Research Summary**
@@ -67,11 +67,10 @@
 - **Session Management**: Built-in connection management with auto-reconnection
 
 ### **Frontend Framework Analysis**
-- **Winner**: FastAPI + React + Cytoscape.js
-  - WebGL/WebGPU rendering for 50+ nodes
+- **Winner**: FastAPI + React + Tailwind CSS
+  - Efficient, ergonomic UI for live data
   - WebSocket for real-time updates
-  - Proven in production Meshtastic visualizers
-  - Rich animation and interaction capabilities
+  - Simple, readable two-panel layout
 
 ### **Database Design**
 - **Session-based**: Active session for UI, archived sessions for analysis
@@ -97,10 +96,12 @@ meshtastic-visualizer/
 │   ├── src/
 │   │   ├── App.tsx             # Main React app
 │   │   ├── components/
-│   │   │   ├── NetworkGraph.tsx    # Cytoscape.js force-directed graph
-│   │   │   ├── ActiveNodes.tsx     # Live sidebar
-│   │   │   ├── EventTicker.tsx     # Scrolling events
-│   │   │   └── SessionControls.tsx # Start/reset session
+│   │   │   ├── ActiveNodes.tsx         # Nodes panel
+│   │   │   ├── MessagesPanel.tsx       # Messages/packets panel
+│   │   │   ├── NodeDetailsModal.tsx    # Node info popup
+│   │   │   ├── PacketDetailsModal.tsx  # Packet decode popup
+│   │   │   ├── EventTicker.tsx         # Scrolling events
+│   │   │   └── SessionControls.tsx     # Start/reset session
 │   │   ├── services/
 │   │   │   └── websocket.ts    # Real-time data connection
 │   │   └── styles/              # Visual theming
@@ -127,28 +128,8 @@ async def websocket_endpoint(websocket: WebSocket):
     pub.subscribe(on_meshtastic_receive, "meshtastic.receive")
 ```
 
-### **Force-Directed Graph**
-```typescript
-// Frontend (React + Cytoscape.js)
-const cy = cytoscape({
-  container: containerRef.current,
-  style: [
-    {
-      selector: 'node',
-      style: {
-        'background-color': (ele) => getSignalColor(ele.data('rssi')),
-        'width': (ele) => getBatterySize(ele.data('battery')),
-        'label': 'data(name)'
-      }
-    }
-  ],
-  layout: {
-    name: 'cose',
-    animate: true,
-    animationDuration: 500
-  }
-});
-```
+### **Message Decode**
+Decoding is handled in a shared utility (`MeshtasticDecoder`) that maps port numbers to types and prepares a human-readable view per packet type, alongside raw JSON for debugging.
 
 ### **Session Management**
 ```python

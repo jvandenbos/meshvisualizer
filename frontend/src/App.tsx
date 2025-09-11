@@ -1,26 +1,26 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import NetworkGraph from './components/NetworkGraph';
+import { useState, useEffect, useCallback } from 'react';
 import ActiveNodes from './components/ActiveNodes';
 import EventTicker, { Event } from './components/EventTicker';
 import SessionControls from './components/SessionControls';
-import { MapView } from './components/MapView';
-import { PacketInspector } from './components/PacketInspector';
-import { NodeInfo, NetworkLink, TextMessage, Session } from './types';
+import { NodeDetailsModal } from './components/NodeDetailsModal';
+import { MessagesPanel } from './components/MessagesPanel';
+import { PacketDetailsModal } from './components/PacketDetailsModal';
+import { MapModal } from './components/MapModal';
+import type { DecodedPacket } from './utils/meshtasticDecoder';
+import { NodeInfo, TextMessage, Session } from './types';
 import websocketService from './services/websocket';
-import { Network, Map, Terminal } from 'lucide-react';
-
-type ViewMode = 'graph' | 'map' | 'packets';
 
 function App() {
   // State management
   const [isConnected, setIsConnected] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [nodes, setNodes] = useState<NodeInfo[]>([]);
-  const [links, setLinks] = useState<NetworkLink[]>([]);
   const [messages, setMessages] = useState<TextMessage[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('graph');
+  const [localNodeId, setLocalNodeId] = useState<string | null>(null);
+  const [packetModal, setPacketModal] = useState<DecodedPacket | null>(null);
+  const [isMapOpen, setIsMapOpen] = useState(false);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -54,7 +54,7 @@ function App() {
           setNodes(data.nodes);
         }
         if (data.messages) setMessages(data.messages);
-        if (data.links) setLinks(data.links);
+        // links not used in simplified UI
       });
 
       websocketService.on('node_info', (data: any) => {
@@ -79,14 +79,11 @@ function App() {
         addEvent('telemetry', `Telemetry: ${data.node_id}`);
       });
 
-      websocketService.on('network_link', (data: NetworkLink) => {
-        updateLink(data);
-      });
+      // network_link events ignored in simplified UI
 
       websocketService.on('session_reset', (data: any) => {
         setSession(data.session);
         setNodes([]);
-        setLinks([]);
         setMessages([]);
         setEvents([]);
         addEvent('connection', 'Session reset');
@@ -97,6 +94,20 @@ function App() {
       addEvent('connection', 'Failed to connect to server');
     }
   };
+
+  // Fetch device status to get local node ID
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch('http://localhost:8000/api/device/status');
+        const data = await res.json();
+        if (data?.local_node_id) setLocalNodeId(String(data.local_node_id));
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchStatus();
+  }, []);
 
   const addEvent = (type: Event['type'], text: string) => {
     const event: Event = {
@@ -141,26 +152,6 @@ function App() {
     ));
   };
 
-  const updateLink = (link: NetworkLink) => {
-    // Skip invalid links (broadcast or non-existent nodes)
-    if (!link.from_id || !link.to_id || link.to_id === 'broadcast' || link.from_id === 'broadcast') {
-      return;
-    }
-    
-    setLinks(prev => {
-      const index = prev.findIndex(l => 
-        l.from_id === link.from_id && l.to_id === link.to_id
-      );
-      if (index >= 0) {
-        const updated = [...prev];
-        updated[index] = link;
-        return updated;
-      } else {
-        return [...prev, link];
-      }
-    });
-  };
-
   const handleNewSession = async () => {
     try {
       const response = await fetch('http://localhost:8000/api/session/new', {
@@ -197,20 +188,9 @@ function App() {
     setSelectedNodeId(node.id);
   }, []);
 
-  const handleNodeClick = useCallback((node: NodeInfo) => {
-    setSelectedNodeId(node.id);
-    // Could open a detail panel or perform other actions
-  }, []);
+  
 
-  const handleNodeHover = useCallback((node: NodeInfo | null) => {
-    // Could show tooltip or highlight connections
-  }, []);
-
-  // Convert nodes array to Map for MapView
-  const nodesMap = new Map<string, NodeInfo>();
-  nodes.forEach(node => {
-    nodesMap.set(node.id, node);
-  });
+  const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) || null : null;
 
   return (
     <div className="h-screen flex flex-col bg-gray-900">
@@ -223,93 +203,40 @@ function App() {
         onConnect={handleConnect}
         onDisconnect={handleDisconnect}
       />
-      
-      {/* View Mode Selector */}
-      <div className="bg-gray-800 border-b border-gray-700 px-4 py-2">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setViewMode('graph')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-colors ${
-              viewMode === 'graph' 
-                ? 'bg-cyan-600 text-white' 
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
-          >
-            <Network className="h-4 w-4" />
-            <span className="text-sm font-medium">Network Graph</span>
-          </button>
-          <button
-            onClick={() => setViewMode('map')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-colors ${
-              viewMode === 'map' 
-                ? 'bg-cyan-600 text-white' 
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
-          >
-            <Map className="h-4 w-4" />
-            <span className="text-sm font-medium">Coverage Map</span>
-          </button>
-          <button
-            onClick={() => setViewMode('packets')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-colors ${
-              viewMode === 'packets' 
-                ? 'bg-cyan-600 text-white' 
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
-          >
-            <Terminal className="h-4 w-4" />
-            <span className="text-sm font-medium">Packet Inspector</span>
-          </button>
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Left: Nodes */}
+        <div className="w-96 border-r border-gray-700 flex flex-col min-h-0">
+          <ActiveNodes
+            nodes={nodes}
+            selectedNodeId={selectedNodeId}
+            onNodeSelect={handleNodeSelect}
+            localNodeId={localNodeId || 'unknown'}
+          />
+        </div>
+        {/* Right: Messages */}
+        <div className="flex-1 min-h-0">
+          <MessagesPanel onPacketClick={(p) => setPacketModal(p)} onOpenMap={() => setIsMapOpen(true)} />
         </div>
       </div>
-      
-      <div className="flex-1 flex overflow-hidden">
-        {viewMode === 'graph' && (
-          <>
-            <div className="flex-1 p-4">
-              <NetworkGraph
-                nodes={nodes}
-                links={links}
-                onNodeClick={handleNodeClick}
-                onNodeHover={handleNodeHover}
-              />
-            </div>
-            <ActiveNodes
-              nodes={nodes}
-              selectedNodeId={selectedNodeId}
-              onNodeSelect={handleNodeSelect}
-              localNodeId="1109198442"
-            />
-          </>
-        )}
-        
-        {viewMode === 'map' && (
-          <>
-            <div className="flex-1">
-              <MapView
-                nodes={nodesMap}
-                localNodeId="1109198442"
-                selectedNode={selectedNodeId}
-                onNodeSelect={setSelectedNodeId}
-              />
-            </div>
-            <ActiveNodes
-              nodes={nodes}
-              selectedNodeId={selectedNodeId}
-              onNodeSelect={handleNodeSelect}
-              localNodeId="1109198442"
-            />
-          </>
-        )}
-        
-        {viewMode === 'packets' && (
-          <div className="flex-1">
-            <PacketInspector />
-          </div>
-        )}
-      </div>
-      
-      {viewMode !== 'packets' && <EventTicker events={events} />}
+
+      <EventTicker events={events} />
+
+      {selectedNode && (
+        <NodeDetailsModal
+          node={selectedNode}
+          onClose={() => setSelectedNodeId(null)}
+          onRequestTelemetry={(id) => websocketService.requestTelemetry(id)}
+          onRequestPosition={(id) => websocketService.requestPosition(id)}
+        />
+      )}
+
+      {packetModal && (
+        <PacketDetailsModal packet={packetModal} onClose={() => setPacketModal(null)} />
+      )}
+
+      {isMapOpen && (
+        <MapModal nodes={nodes} onClose={() => setIsMapOpen(false)} />
+      )}
     </div>
   );
 }

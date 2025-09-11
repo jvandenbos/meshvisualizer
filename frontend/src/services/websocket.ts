@@ -3,7 +3,7 @@ import { WebSocketMessage } from '../types';
 class WebSocketService {
   private ws: WebSocket | null = null;
   private url: string;
-  private reconnectTimeout: NodeJS.Timeout | null = null;
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private listeners: Map<string, Set<Function>> = new Map();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { MessageSquare, Radio, MapPin, Battery, Link2 } from 'lucide-react';
 
 interface Event {
@@ -14,7 +14,7 @@ interface EventTickerProps {
   maxEvents?: number;
 }
 
-const EventTicker: React.FC<EventTickerProps> = ({ events, maxEvents = 100 }) => {
+const EventTicker = ({ events, maxEvents = 100 }: EventTickerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
