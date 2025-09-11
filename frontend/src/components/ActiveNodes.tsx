@@ -100,27 +100,32 @@ const ActiveNodes = ({
               selectedNodeId === node.id ? 'bg-gray-700' : ''
             }`}
           >
-            {/* Hop count badge in upper right */}
-            {(node.id === localNodeId || (node.hop_count !== undefined && node.hop_count < 999)) && (
-              <div className="absolute top-2 right-2">
-                <span className={`px-2 py-1 text-xs font-bold rounded ${
-                  node.id === localNodeId 
-                    ? 'bg-green-600 text-white' 
-                    : node.hop_count === 1 
-                    ? 'bg-blue-600 text-white' 
-                    : node.hop_count === 2
-                    ? 'bg-yellow-600 text-white'
-                    : node.hop_count && node.hop_count >= 3
-                    ? 'bg-orange-600 text-white'
-                    : 'bg-gray-600 text-white'
-                }`}>
-                  {node.id === localNodeId ? 'LOCAL' : 
-                   node.hop_count === 1 ? 'DIRECT' : 
-                   node.hop_count && node.hop_count < 999 ? `${node.hop_count} HOPS` : 
-                   'UNKNOWN'}
-                </span>
-              </div>
-            )}
+            {/* Hop count badge in upper right (always show, including UNKNOWN) */}
+            <div className="absolute top-2 right-2">
+              {(() => {
+                const hops = node.hop_count;
+                const isLocal = node.id === localNodeId;
+                const label = isLocal
+                  ? 'LOCAL'
+                  : hops === 1
+                  ? 'DIRECT'
+                  : hops !== undefined && hops !== null && hops < 999
+                  ? `${hops} HOPS`
+                  : 'UNKNOWN';
+                const cls = isLocal
+                  ? 'bg-green-600 text-white'
+                  : hops === 1
+                  ? 'bg-blue-600 text-white'
+                  : hops === 2
+                  ? 'bg-yellow-600 text-white'
+                  : hops !== undefined && hops !== null && hops >= 3 && hops < 999
+                  ? 'bg-orange-600 text-white'
+                  : 'bg-gray-600 text-white';
+                return (
+                  <span className={`px-2 py-1 text-xs font-bold rounded ${cls}`}>{label}</span>
+                );
+              })()}
+            </div>
             
             <div className="flex items-start justify-between">
               <div className="flex-1">
