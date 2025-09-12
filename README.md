@@ -1,6 +1,6 @@
 # Meshtastic Network Visualizer
 
-A real-time network visualizer for Meshtastic mesh networks featuring a streamlined two-panel interface (nodes + messages), session management, and live updates with <100ms response times.
+A real-time network visualizer for Meshtastic mesh networks featuring a streamlined two-panel interface (nodes + messages), a resizable packets/messenger split, an optional map with hop badges and clustering, session management, and live updates with <100ms response times.
 
 ![Meshtastic Visualizer](https://img.shields.io/badge/Meshtastic-Visualizer-cyan)
 ![Python](https://img.shields.io/badge/Python-3.8+-blue)
@@ -10,16 +10,17 @@ A real-time network visualizer for Meshtastic mesh networks featuring a streamli
 ## Features
 
 ### 🎯 Core Features
-- **Two-Panel UI**: Nodes on the left, live messages on the right
+- **Two-Panel UI**: Nodes on the left; right side split into Packets (top) and Messenger (bottom)
+- **Resizable Right Split**: Drag the divider between Packets and Messenger
 - **Real-time Updates**: <100ms response time for all network events
 - **Session Management**: View only current session data, with everything archived to SQLite
 - **Bottom Ticker**: Scrolling activity ticker for quick awareness
 
 ### 📊 Visualization
-- **Color-coded Signal Strength** (RSSI/SNR + gauge)
-- **Battery Status** and voltage
-- **Hop awareness**: LOCAL/DIRECT/⟨N⟩ HOPS with unknown handling
-- **Active Nodes panel**: Beautiful, human-readable node list with detail modal
+- **Hop Awareness**: LOCAL/DIRECT/N HOPS/UNKNOWN badges always visible
+- **Signal**: RSSI/SNR + compact gauge; direct links show an estimated distance bar
+- **Battery/Voltage**: Quick device health in the node list
+- **Map Modal**: Markers for all nodes with coordinates, hop-count badges, simple clustering, and a mini legend
 - **Event Ticker**: Scrolling feed of network events
 
 ### 📡 Device Support
@@ -83,15 +84,17 @@ npm run dev
 
 ### Controls
 - **Click nodes** to open a detailed node modal (request telemetry/position)
-- **Filter messages** by type (Messages, Telemetry, Position, NodeInfo)
-- **Inspect packets** via popup with human-readable decode and raw JSON
-- **Event ticker** shows real-time activity
+- **Right pane**: Filter packets by type; click a row to Inspect (human-readable decode + raw JSON)
+- **Messenger**: Type and press Enter or click Send; shows “Sending…” pending and ✓ Delivered when echoed
+- **Map**: Use the Map button in the Packets header to open the map modal
+- **Divider**: Drag the bar between Packets and Messenger to resize
+- **Ticker**: Bottom bar shows activity
 
 ## Architecture
 
 ### Technology Stack
 - **Backend**: FastAPI + WebSocket + Python Meshtastic API
-- **Frontend**: React + TypeScript + Tailwind CSS
+- **Frontend**: React + TypeScript + Tailwind CSS + React‑Leaflet
 - **Database**: SQLite with session-based architecture
 - **Real-time**: WebSocket for <100ms updates
 
@@ -105,7 +108,7 @@ meshtastic-visualizer/
 │   └── models.py        # Data models
 ├── frontend/            # React application
 │   └── src/
-│       ├── components/  # UI components (ActiveNodes, MessagesPanel, modals)
+│       ├── components/  # UI components (ActiveNodes, MessagesPanel, ChatPanel, MapModal)
 │       ├── services/    # WebSocket service
 │       └── App.tsx      # Main app
 ├── requirements.txt     # Python dependencies
@@ -166,9 +169,25 @@ SQLite database is created automatically at `meshtastic.db`. Schema includes:
 - Restart the Meshtastic device
 
 ### Performance
-- For networks >50 nodes, ensure hardware acceleration is enabled in browser
-- The WebGPU renderer will automatically activate for large networks
-- Check browser console for performance warnings
+- For larger networks, ensure hardware acceleration is enabled in the browser
+- Check the browser console for WebSocket logs and warnings
+
+## Name Aliases (Human‑Readable Names)
+
+You can provide friendly names for nodes in `frontend/public/aliases.json` (loaded automatically):
+
+```json
+{
+  "066a": "jasper-sky",
+  "1109198442": "My Base Station"
+}
+```
+
+Matching is by exact ID, or a suffix/substring of the ID (e.g., "066a"). Display names resolve in this order: `long_name → alias → short_name → id`.
+
+## Delivery and Pending Messages
+
+The Messenger shows outgoing messages immediately as “Sending…”. When a `text_message` is received from your local node, it flips to “✓ Delivered”. If your device/connector does not echo locally‑sent messages, they will remain in the pending style; we can add a timeout‑based “Sent” state if needed.
 
 ## Contributing
 

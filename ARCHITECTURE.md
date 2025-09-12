@@ -15,14 +15,17 @@
 - **Real-time Events**: PubSub system for node discovery, messages, telemetry
 
 ### **2. Visualization Layer** 
-- **Two-Panel UI**: Left panel for Active Nodes, right panel for Messages
+- **Two-Panel UI**: Left panel for Active Nodes; right panel split into Packets (top) and Messenger (bottom) with a draggable divider
+- **Map Modal**: Markers for positioned nodes, hop-count badges (L/D/N), simple clustering, mini legend
 - **Bottom Ticker**: Scrolling activity ticker
 - **Color Psychology**: Green(excellent) → Yellow(good) → Orange(weak) → Red(poor) signal
 - **Interactive Features**: Node details modal; packet details modal with human-readable decode
 
 ### **3. UI Components**
-- **Active Nodes Panel**: Left-side list sorted by hop/activity 
-- **Messages Panel**: Right-side live stream with type filters
+- **Active Nodes Panel**: Left-side list sorted by hop/activity, always-visible hop badges
+- **Messages Panel**: Right-top live stream with type filters
+- **Chat Panel**: Right-bottom messenger with pending/delivered state and send
+- **Map Modal**: Optional overlay from Packets header (with legend)
 - **Event Ticker**: Scrolling live events (messages, discoveries)
 - **Session Controls**: Start/reset session functionality
 
@@ -129,7 +132,14 @@ async def websocket_endpoint(websocket: WebSocket):
 ```
 
 ### **Message Decode**
-Decoding is handled in a shared utility (`MeshtasticDecoder`) that maps port numbers to types and prepares a human-readable view per packet type, alongside raw JSON for debugging.
+Decoding is handled in a shared utility (`MeshtasticDecoder`) that maps port numbers or event `type` to packet categories (TEXT_MESSAGE, POSITION, TELEMETRY, NODEINFO, ROUTING, ADMIN) and prepares a human-readable view per packet type, alongside raw JSON for debugging.
+
+### **Name Resolution**
+`nameResolver` prefers `long_name`, falls back to an alias from `public/aliases.json`, then `short_name`, then `id`. Aliases match by exact id or suffix/substring.
+
+### **Hop Count & Signal Updates**
+- Backend computes hop_count from Meshtastic packet fields and updates sender node on `text_message` and `mesh_packet`, then broadcasts `node_info` to clients so the UI refreshes badges.
+- Unknown nodes receiving `position_update` are created immediately (both backend and frontend) so they appear on the map.
 
 ### **Session Management**
 ```python
