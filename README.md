@@ -155,6 +155,7 @@ SQLite database is created automatically at `meshtastic.db`. Schema includes:
 - `POST /api/device/connect` - Connect to device
 - `POST /api/device/disconnect` - Disconnect from device
 - `GET /api/device/status` - Get connection status
+- `POST /api/channel/test` - Set/clear private test channel index
 
 ## Meshtastic Server Commands (via DM)
 
@@ -172,6 +173,19 @@ Security/rate limiting:
 - Per‑sender cooldowns as noted above.
 - Broadcast messages are ignored; only direct messages to our node are considered.
 - The backend does not execute user content; only known commands are handled.
+
+## Private/Test Channel
+
+To avoid sending to the public mesh, you can set a private channel index for testing. The device must already have that channel configured (e.g., created via the Meshtastic app with a unique PSK). The frontend Messenger can then opt-in to send via this channel.
+
+- Set test channel index:
+  - `POST /api/channel/test` with `{ "index": 2 }` (0–7). Use `null` to clear.
+- Check status:
+  - `GET /api/device/status` includes `test_channel_index` when set.
+- Messenger UI: toggle “Private ch X” to send via that index.
+- DM replies continue on the channel they were received on (responses only).
+
+Note: This does not change radio channel configuration; it only selects the transmit channel index for messages we send. Ensure the node is subscribed to that channel to receive them.
 
 ## Troubleshooting
 

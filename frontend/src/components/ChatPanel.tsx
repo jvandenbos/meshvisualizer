@@ -9,16 +9,18 @@ interface ChatPanelProps {
   messages: TextMessage[];
   localNodeId?: string | null;
   targetNodeId?: string | null;
+  testChannelIndex?: number | null;
 }
 
 type Pending = { id: string; text: string; dest: string; timestamp: number };
 
-export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId }: ChatPanelProps) => {
+export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId, testChannelIndex }: ChatPanelProps) => {
   const [text, setText] = useState('');
   const [dest, setDest] = useState<string>('broadcast');
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [pending, setPending] = useState<Pending[]>([]);
+  const [usePrivateChannel, setUsePrivateChannel] = useState<boolean>(false);
 
   const nodeOptions = useMemo(() => {
     const opts = [{ id: 'broadcast', name: 'Broadcast' }];
@@ -47,7 +49,8 @@ export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId }: ChatPa
     try {
       setIsSending(true);
       console.log('[Chat] send', { text: trimmed, dest });
-      websocketService.sendText(trimmed, dest === 'broadcast' ? undefined : dest);
+      const channelIndex = usePrivateChannel && typeof testChannelIndex === 'number' ? testChannelIndex : undefined;
+      websocketService.sendText(trimmed, dest === 'broadcast' ? undefined : dest, channelIndex);
       setPending((prev) => [{ id: `${Date.now()}-${Math.random()}`, text: trimmed, dest, timestamp: Date.now() }, ...prev].slice(0, 50));
       setText('');
     } finally {
@@ -82,6 +85,12 @@ export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId }: ChatPa
                 <option key={o.id} value={o.id}>{o.name}</option>
               ))}
             </select>
+            {typeof testChannelIndex === 'number' && (
+              <label className="ml-2 inline-flex items-center gap-1 cursor-pointer select-none">
+                <input type="checkbox" className="accent-purple-500" checked={usePrivateChannel} onChange={(e) => setUsePrivateChannel(e.target.checked)} />
+                <span>Private ch {testChannelIndex}</span>
+              </label>
+            )}
           </div>
         </div>
       </div>

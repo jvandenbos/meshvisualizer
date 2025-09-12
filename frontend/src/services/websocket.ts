@@ -105,9 +105,11 @@ class WebSocketService {
     this.ws.send(JSON.stringify(message));
   }
 
-  sendText(text: string, destination?: string) {
-    console.log('[WebSocket] Sending text', { text, destination });
-    this.send('send_text', { text, destination });
+  sendText(text: string, destination?: string, channelIndex?: number) {
+    console.log('[WebSocket] Sending text', { text, destination, channelIndex });
+    const data: any = { text, destination };
+    if (typeof channelIndex === 'number') data.channel_index = channelIndex;
+    this.send('send_text', data);
   }
 
   requestTelemetry(nodeId?: string) {

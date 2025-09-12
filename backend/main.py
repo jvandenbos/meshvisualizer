@@ -45,6 +45,7 @@ class AppState:
         self.startup_time: datetime = datetime.now()
         self.command_last_seen: Dict[str, float] = {}
         self.env_by_node: Dict[str, Any] = {}
+        self.test_channel_index: Optional[int] = None
 
 state = AppState()
 
@@ -687,8 +688,14 @@ async def websocket_endpoint(websocket: WebSocket):
             if message.get("type") == "send_text":
                 text = payload.get("text", "")
                 destination = payload.get("destination")
+                channel_index = payload.get("channel_index")
+                try:
+                    if isinstance(channel_index, str) and channel_index.isdigit():
+                        channel_index = int(channel_index)
+                except Exception:
+                    channel_index = None
                 if state.meshtastic:
-                    state.meshtastic.send_text(text, destination)
+                    state.meshtastic.send_text(text, destination, channel_index)
                     
             elif message.get("type") == "request_telemetry":
                 node_id = payload.get("node_id")
@@ -791,8 +798,28 @@ async def get_device_status():
     """Get device connection status"""
     return {
         "connected": state.meshtastic.connected if state.meshtastic else False,
-        "local_node_id": state.meshtastic.local_node_id if state.meshtastic else None
+        "local_node_id": state.meshtastic.local_node_id if state.meshtastic else None,
+        "test_channel_index": state.test_channel_index
     }
+
+@app.post("/api/channel/test")
+async def set_test_channel(payload: Dict[str, Any]):
+    """Set or clear the test/private channel index used for sending when requested.
+    Payload: { "index": int | null }
+    """
+    idx = payload.get("index", None)
+    if idx is None:
+        state.test_channel_index = None
+        return {"status": "cleared"}
+    try:
+        idx = int(idx)
+    except Exception:
+        raise HTTPException(status_code=400, detail="index must be integer or null")
+    if idx < 0 or idx > 7:
+        # Meshtastic supports up to 8 channels typically
+        raise HTTPException(status_code=400, detail="index must be between 0 and 7")
+    state.test_channel_index = idx
+    return {"status": "ok", "test_channel_index": state.test_channel_index}
 
 # Serve static files (for production)
 # Uncomment when frontend build is ready

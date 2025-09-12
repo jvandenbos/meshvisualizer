@@ -366,16 +366,29 @@ class MeshtasticConnector:
             except RuntimeError:
                 asyncio.run(self.on_data_callback(link_data))
     
-    def send_text(self, text: str, destination: Optional[str] = None) -> bool:
+    def send_text(self, text: str, destination: Optional[str] = None, channel_index: Optional[int] = None) -> bool:
         """Send text message"""
         if not self.interface or not self.connected:
             return False
         
         try:
             if destination:
-                self.interface.sendText(text, destinationId=destination)
+                if channel_index is not None:
+                    try:
+                        self.interface.sendText(text, destinationId=destination, channelIndex=channel_index)
+                    except TypeError:
+                        # Older API compatibility: no channelIndex param
+                        self.interface.sendText(text, destinationId=destination)
+                else:
+                    self.interface.sendText(text, destinationId=destination)
             else:
-                self.interface.sendText(text)
+                if channel_index is not None:
+                    try:
+                        self.interface.sendText(text, channelIndex=channel_index)
+                    except TypeError:
+                        self.interface.sendText(text)
+                else:
+                    self.interface.sendText(text)
             return True
         except Exception as e:
             logger.error(f"Failed to send text: {e}")

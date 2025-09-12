@@ -28,6 +28,7 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [aliases, setAliases] = useState<AliasMap>({});
   const [chatTargetId, setChatTargetId] = useState<string | null>(null);
+  const [testChannelIndex, setTestChannelIndex] = useState<number | null>(null);
 
   // Connect once and register event handlers with cleanup to avoid duplicates
   useEffect(() => {
@@ -105,6 +106,7 @@ function App() {
         const res = await fetch('http://localhost:8000/api/device/status');
         const data = await res.json();
         if (data?.local_node_id) setLocalNodeId(String(data.local_node_id));
+        if (data?.test_channel_index === 0 || data?.test_channel_index) setTestChannelIndex(Number(data.test_channel_index));
       } catch (e) {
         // ignore
       }
@@ -319,7 +321,7 @@ function App() {
             title="Drag to resize"
           />
           <div className="flex-1 min-h-0 overflow-hidden">
-            <ChatPanel nodes={nodes} messages={messages} localNodeId={localNodeId || undefined} targetNodeId={chatTargetId} />
+            <ChatPanel nodes={nodes} messages={messages} localNodeId={localNodeId || undefined} targetNodeId={chatTargetId} testChannelIndex={testChannelIndex ?? undefined} />
           </div>
         </div>
       </div>
