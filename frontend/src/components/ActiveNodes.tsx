@@ -1,5 +1,6 @@
+import { useMemo, useState } from 'react';
 import { NodeInfo } from '../types';
-import { Battery, Radio } from 'lucide-react';
+import { Battery, Radio, Search } from 'lucide-react';
 import SignalStrengthGauge from './SignalStrengthGauge';
 
 interface ActiveNodesProps {
@@ -9,13 +10,14 @@ interface ActiveNodesProps {
   localNodeId?: string;
 }
 
-const ActiveNodes = ({ 
-  nodes, 
+const ActiveNodes = ({
+  nodes,
   selectedNodeId, 
   onNodeSelect,
   localNodeId = '1109198442'  // Default to known local node
 }: ActiveNodesProps) => {
   // reserved for future iconography if needed
+  const [searchTerm, setSearchTerm] = useState('');
 
   const getBatteryColor = (level?: number) => {
     if (!level) return 'text-gray-500';
@@ -55,7 +57,7 @@ const ActiveNodes = ({
   };
 
   // Sort nodes: My node first, then direct (1 hop), then ascending by hop count
-  const sortedNodes = [...nodes].sort((a, b) => {
+  const sortedNodes = useMemo(() => [...nodes].sort((a, b) => {
     // My node always first (only by ID match)
     const aIsLocal = a.id === localNodeId;
     const bIsLocal = b.id === localNodeId;
@@ -79,20 +81,40 @@ const ActiveNodes = ({
     
     // If same hop count, sort by last heard (most recent first)
     return new Date(b.last_heard).getTime() - new Date(a.last_heard).getTime();
-  });
+  }), [nodes, localNodeId]);
+
+  const filteredNodes = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return sortedNodes;
+    return sortedNodes.filter((n) => {
+      const name = (n.long_name || n.short_name || n.id || '').toLowerCase();
+      return name.includes(term);
+    });
+  }, [sortedNodes, searchTerm]);
 
   return (
     <div className="w-full bg-gray-800 overflow-hidden flex flex-col min-h-0">
-      <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+      <div className="p-4 border-b border-gray-700">
+        <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-white">Active Nodes</h2>
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-          <span>{nodes.filter(n => n.is_online).length} Live</span>
+          <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>{nodes.filter(n => n.is_online).length} Live</span>
+          </div>
+        </div>
+        <div className="mt-3 relative">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+          <input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search nodes by name or ID..."
+            className="w-full pl-9 pr-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:outline-none focus:border-cyan-500"
+          />
         </div>
       </div>
       
       <div className="flex-1 overflow-y-auto">
-        {sortedNodes.map((node) => (
+        {filteredNodes.map((node) => (
           <div
             key={node.id}
             onClick={() => onNodeSelect(node)}

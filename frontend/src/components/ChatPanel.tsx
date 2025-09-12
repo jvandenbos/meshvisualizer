@@ -8,11 +8,12 @@ interface ChatPanelProps {
   nodes: NodeInfo[];
   messages: TextMessage[];
   localNodeId?: string | null;
+  targetNodeId?: string | null;
 }
 
 type Pending = { id: string; text: string; dest: string; timestamp: number };
 
-export const ChatPanel = ({ nodes, messages, localNodeId }: ChatPanelProps) => {
+export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId }: ChatPanelProps) => {
   const [text, setText] = useState('');
   const [dest, setDest] = useState<string>('broadcast');
   const [isSending, setIsSending] = useState(false);
@@ -33,6 +34,12 @@ export const ChatPanel = ({ nodes, messages, localNodeId }: ChatPanelProps) => {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages.length]);
+
+  // If a target node is provided (e.g., reply), switch destination
+  useEffect(() => {
+    if (!targetNodeId) return;
+    setDest(targetNodeId);
+  }, [targetNodeId]);
 
   const send = async () => {
     const trimmed = text.trim();

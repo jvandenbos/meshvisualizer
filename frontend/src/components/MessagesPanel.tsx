@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Download, Pause, Play, Terminal, ChevronRight, ChevronDown, Copy } from 'lucide-react';
+import { Search, Download, Pause, Play, Terminal, ChevronRight, ChevronDown, Copy, Reply } from 'lucide-react';
 import websocketService from '../services/websocket';
 import MeshtasticDecoder, { DecodedPacket } from '../utils/meshtasticDecoder';
 import { NodeInfo } from '../types';
@@ -12,9 +12,10 @@ interface MessagesPanelProps {
   onOpenMap?: () => void;
   nodes?: NodeInfo[];
   aliases?: AliasMap;
+  onReplyTo?: (nodeId: string) => void;
 }
 
-export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onOpenMap, nodes, aliases }) => {
+export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onOpenMap, nodes, aliases, onReplyTo }) => {
   const [packets, setPackets] = useState<DecodedPacket[]>([]);
   const [filterTab, setFilterTab] = useState<TabKey>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -186,12 +187,23 @@ export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onO
                         {p.hopCount !== undefined && <span>Hops: {p.hopCount}</span>}
                       </div>
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onPacketClick && onPacketClick(p); }}
-                      className="ml-2 px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-200"
-                    >
-                      Inspect
-                    </button>
+                    <div className="ml-2 flex items-center gap-2">
+                      {p.portnum === 'TEXT_MESSAGE' && onReplyTo && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onReplyTo(p.from); }}
+                          className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-200 flex items-center gap-1"
+                          title="Reply to sender"
+                        >
+                          <Reply className="h-3 w-3" /> Reply
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onPacketClick && onPacketClick(p); }}
+                        className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-200"
+                      >
+                        Inspect
+                      </button>
+                    </div>
                   </div>
                   {isExpanded && (
                     <div className="mt-3 p-2 bg-gray-900 rounded text-xs">

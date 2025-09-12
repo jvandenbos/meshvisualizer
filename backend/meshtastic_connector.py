@@ -17,14 +17,21 @@ class MeshtasticConnector:
         self.node_db: Dict[str, NodeInfo] = {}
         self.on_data_callback = on_data_callback
         self.local_node_id: Optional[str] = None
+        self._subscribed = False
         
     def connect(self, device_path: Optional[str] = None) -> bool:
         """Connect to RAK 4631 over USB-C"""
         try:
+            # Prevent duplicate subscriptions and reconnects when already connected
+            if self.connected and self.interface is not None:
+                logger.info("Meshtastic already connected; skipping reconnect")
+                return True
             # Set up event handlers
-            pub.subscribe(self.on_receive, "meshtastic.receive")
-            pub.subscribe(self.on_connection, "meshtastic.connection.established")
-            pub.subscribe(self.on_connection_lost, "meshtastic.connection.lost")
+            if not self._subscribed:
+                pub.subscribe(self.on_receive, "meshtastic.receive")
+                pub.subscribe(self.on_connection, "meshtastic.connection.established")
+                pub.subscribe(self.on_connection_lost, "meshtastic.connection.lost")
+                self._subscribed = True
             
             # Connect to device
             if device_path:
@@ -83,9 +90,9 @@ class MeshtasticConnector:
                 except RuntimeError:
                     asyncio.run(self.on_data_callback(local_node_data))
         
-        # Request initial data
-        if self.interface:
-            self.interface.sendText("Visualizer connected")
+        # Do NOT broadcast anything by default to avoid mesh spam.
+        # If an announcement is ever needed, guard with an env flag and send once.
+        # Intentionally left disabled.
     
     def on_connection_lost(self, interface, topic=pub.AUTO_TOPIC):
         """Called when connection is lost"""

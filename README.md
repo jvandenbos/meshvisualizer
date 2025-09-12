@@ -156,6 +156,23 @@ SQLite database is created automatically at `meshtastic.db`. Schema includes:
 - `POST /api/device/disconnect` - Disconnect from device
 - `GET /api/device/status` - Get connection status
 
+## Meshtastic Server Commands (via DM)
+
+The backend can respond to direct text messages sent to the local node. Commands are rate‑limited per sender to prevent abuse.
+
+- PING: Replies with "Acknowledge, you are X hop(s) away." Uses the observed hop count on the received packet; falls back to unknown if not available. Cooldown: 5s.
+- INFO: Replies with a concise summary like: "Nodes: N (Direct D, Multi M). Uptime: 1h 23m. MyID: 1109198442." Cooldown: 15s.
+- HELP: Brief command list. Cooldown: 10s.
+- WEATHER: Reports latest environmental telemetry (T/RH/Pressure) from the local node if available, else any node with env metrics (prefers direct neighbors). Cooldown: 30s.
+- UPTIME: Returns the backend uptime. Cooldown: 10s.
+- NODES: Returns counts (total, direct, multi-hop). Cooldown: 10s.
+- NEIGHBORS: Direct neighbors count and up to 5 names. Cooldown: 10s.
+
+Security/rate limiting:
+- Per‑sender cooldowns as noted above.
+- Broadcast messages are ignored; only direct messages to our node are considered.
+- The backend does not execute user content; only known commands are handled.
+
 ## Troubleshooting
 
 ### Device Not Found

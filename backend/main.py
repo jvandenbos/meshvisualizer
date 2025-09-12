@@ -41,6 +41,10 @@ class AppState:
         self.live_nodes: Dict[str, NodeInfo] = {}
         self.live_messages: List[TextMessage] = []
         self.network_links: Dict[str, NetworkLink] = {}
+        # Server features
+        self.startup_time: datetime = datetime.now()
+        self.command_last_seen: Dict[str, float] = {}
+        self.env_by_node: Dict[str, Any] = {}
 
 state = AppState()
 
@@ -215,6 +219,210 @@ async def handle_text_message(data: Dict):
     except Exception as e:
         logger.error(f"Failed to update node from text_message: {e}")
 
+    # After persistence and node update, consider server commands
+    try:
+        await maybe_handle_server_command(message)
+    except Exception as e:
+        logger.error(f"Command handling error: {e}")
+
+async def maybe_handle_server_command(message: TextMessage):
+    """Process incoming text commands sent directly to our local node.
+    Security: rate limit per (sender, command) and ignore broadcasts.
+    Supported: PING, INFO, HELP, WEATHER
+    """
+    # Preconditions
+    if not state.meshtastic or not state.meshtastic.connected:
+        return
+    local_id = state.meshtastic.local_node_id
+    if not local_id:
+        return
+    # Ignore broadcasts and messages not directed to us
+    to_id = str(message.to_id)
+    if to_id in ("4294967295", "^all"):
+        return
+    if to_id != str(local_id):
+        return
+    # Ignore our own messages just in case
+    if str(message.from_id) == str(local_id):
+        return
+
+    # Parse command
+    text = (message.message or "").strip()
+    if not text:
+        return
+    text_upper = text.upper()
+    # Normalize to a simple command token
+    cmd = None
+    if text_upper.startswith("PING") or text_upper.startswith("ECHO"):
+        cmd = "PING"
+    elif text_upper.startswith("INFO"):
+        cmd = "INFO"
+    elif text_upper.startswith("HELP") or text_upper == "?":
+        cmd = "HELP"
+    elif text_upper.startswith("WEATHER"):
+        cmd = "WEATHER"
+    elif text_upper.startswith("UPTIME"):
+        cmd = "UPTIME"
+    elif text_upper.startswith("NODES"):
+        cmd = "NODES"
+    elif text_upper.startswith("NEIGHBORS") or text_upper.startswith("NEIGHBOURS"):
+        cmd = "NEIGHBORS"
+    else:
+        return  # Not a recognized command
+
+    # Rate limit per sender+command
+    import time
+    key = f"{message.from_id}:{cmd}"
+    now = time.time()
+    # Basic per-command cooldowns
+    if cmd == "PING":
+        min_interval = 5.0
+    elif cmd == "INFO":
+        min_interval = 15.0
+    elif cmd == "HELP":
+        min_interval = 10.0
+    elif cmd == "WEATHER":
+        min_interval = 30.0
+    elif cmd in ("UPTIME", "NODES", "NEIGHBORS"):
+        min_interval = 10.0
+    else:
+        min_interval = 15.0
+    last = state.command_last_seen.get(key, 0)
+    if (now - last) < min_interval:
+        logger.info(f"Rate-limited {cmd} from {message.from_id}")
+        return
+    state.command_last_seen[key] = now
+
+    # Prepare replies
+    if cmd == "PING":
+        hops = message.hop_count
+        if hops is None:
+            hop_phrase = "an unknown number of hops"
+        elif hops == 1:
+            hop_phrase = "1 hop"
+        else:
+            hop_phrase = f"{hops} hops"
+        reply = f"Acknowledge, you are {hop_phrase} away."
+        state.meshtastic.send_text(reply, destination=str(message.from_id))
+        return
+
+    if cmd == "INFO":
+        # Compose concise network info
+        nodes = list(state.live_nodes.values())
+        total = len(nodes)
+        direct = sum(1 for n in nodes if n.hop_count == 1)
+        multi = sum(1 for n in nodes if (n.hop_count or 0) >= 2 and (n.hop_count or 999) < 999)
+        # Uptime
+        delta = datetime.now() - state.startup_time
+        days = delta.days
+        hours, rem = divmod(delta.seconds, 3600)
+        minutes, _ = divmod(rem, 60)
+        uptime = (f"{days}d " if days else "") + (f"{hours}h " if hours else "") + (f"{minutes}m" if minutes or (not days and not hours) else "")
+        # Local node id shorthand
+        my_id = str(local_id)
+        # Compose message (keep under ~200 chars)
+        reply = (
+            f"Nodes: {total} (Direct {direct}, Multi {multi}). "
+            f"Uptime: {uptime}. MyID: {my_id}."
+        )
+        try:
+            state.meshtastic.send_text(reply, destination=str(message.from_id))
+        except Exception as e:
+            logger.error(f"Failed to send INFO reply: {e}")
+        return
+
+    if cmd == "HELP":
+        reply = "Commands: PING, INFO, WEATHER. Send as direct message."
+        try:
+            state.meshtastic.send_text(reply, destination=str(message.from_id))
+        except Exception as e:
+            logger.error(f"Failed to send HELP reply: {e}")
+        return
+
+    if cmd == "WEATHER":
+        # Prioritize local node environment if available
+        my_id = str(local_id)
+        env = state.env_by_node.get(my_id)
+        source = "local"
+        if not env:
+            # Fallback to any node with env metrics (prefer direct neighbors)
+            candidate_id = None
+            for n in state.live_nodes.values():
+                if n.hop_count == 1 and n.id in state.env_by_node:
+                    candidate_id = n.id
+                    break
+            if not candidate_id:
+                for n in state.live_nodes.values():
+                    if n.id in state.env_by_node:
+                        candidate_id = n.id
+                        break
+            if candidate_id:
+                env = state.env_by_node.get(candidate_id)
+                source = candidate_id[:8]
+
+        if not env:
+            reply = "Weather: no environmental telemetry available."
+            state.meshtastic.send_text(reply, destination=str(message.from_id))
+            return
+
+        # Format values concisely
+        t = env.get("temperature")
+        h = env.get("humidity")
+        p = env.get("pressure")
+        parts = []
+        if isinstance(t, (int, float)):
+            parts.append(f"T={t:.1f}°C")
+        if isinstance(h, (int, float)):
+            parts.append(f"RH={h:.0f}%")
+        if isinstance(p, (int, float)):
+            parts.append(f"P={p:.0f}hPa")
+        reply = ("Weather (" + source + "): " + ", ".join(parts)) if parts else "Weather: telemetry present but no values."
+        try:
+            state.meshtastic.send_text(reply, destination=str(message.from_id))
+        except Exception as e:
+            logger.error(f"Failed to send WEATHER reply: {e}")
+        return
+
+    if cmd == "UPTIME":
+        delta = datetime.now() - state.startup_time
+        days = delta.days
+        hours, rem = divmod(delta.seconds, 3600)
+        minutes, _ = divmod(rem, 60)
+        uptime = (f"{days}d " if days else "") + (f"{hours}h " if hours else "") + (f"{minutes}m" if minutes or (not days and not hours) else "")
+        reply = f"Uptime: {uptime}".strip()
+        try:
+            state.meshtastic.send_text(reply, destination=str(message.from_id))
+        except Exception as e:
+            logger.error(f"Failed to send UPTIME reply: {e}")
+        return
+
+    if cmd == "NODES":
+        nodes = list(state.live_nodes.values())
+        total = len(nodes)
+        direct = sum(1 for n in nodes if n.hop_count == 1)
+        multi = sum(1 for n in nodes if (n.hop_count or 0) >= 2 and (n.hop_count or 999) < 999)
+        reply = f"Nodes: {total} (Direct {direct}, Multi {multi})."
+        try:
+            state.meshtastic.send_text(reply, destination=str(message.from_id))
+        except Exception as e:
+            logger.error(f"Failed to send NODES reply: {e}")
+        return
+
+    if cmd == "NEIGHBORS":
+        neighbors = [n for n in state.live_nodes.values() if n.hop_count == 1]
+        count = len(neighbors)
+        # show up to 5 names
+        def disp(n: NodeInfo):
+            return (n.short_name or n.long_name or n.id)[:12]
+        names = ", ".join(disp(n) for n in neighbors[:5])
+        tail = "" if count <= 5 else f" (+{count-5} more)"
+        reply = f"Neighbors: {count}" + (f" [{names}]{tail}" if count else "")
+        try:
+            state.meshtastic.send_text(reply, destination=str(message.from_id))
+        except Exception as e:
+            logger.error(f"Failed to send NEIGHBORS reply: {e}")
+        return
+
 async def handle_position_update(data: Dict):
     """Handle position update"""
     node_id = data["node_id"]
@@ -324,6 +532,23 @@ async def handle_telemetry(data: Dict):
         state.live_nodes[node_id] = node
         logger.info(f"   ✅ Added to live_nodes: {node_id[:8]}, total nodes: {len(state.live_nodes)}")
         await state.db.upsert_node(node)
+
+    # Cache environment metrics for quick WEATHER responses
+    try:
+        env = data.get("environment_metrics") or {}
+        if isinstance(env, dict):
+            norm: Dict[str, Any] = {}
+            if env.get("temperature") is not None:
+                norm["temperature"] = env.get("temperature")
+            if env.get("relativeHumidity") is not None:
+                norm["humidity"] = env.get("relativeHumidity")
+            if env.get("barometricPressure") is not None:
+                norm["pressure"] = env.get("barometricPressure")
+            if norm:
+                norm["timestamp"] = data.get("timestamp")
+                state.env_by_node[node_id] = norm
+    except Exception as e:
+        logger.error(f"Failed to cache environment metrics: {e}")
 
 async def handle_network_link(data: Dict):
     """Handle network link update"""
@@ -455,21 +680,23 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_text()
             message = json.loads(data)
+            # Payloads from the frontend are wrapped as { type, data, timestamp }
+            payload = message.get("data") if isinstance(message.get("data"), dict) else message
             
             # Handle client commands
             if message.get("type") == "send_text":
-                text = message.get("text", "")
-                destination = message.get("destination")
+                text = payload.get("text", "")
+                destination = payload.get("destination")
                 if state.meshtastic:
                     state.meshtastic.send_text(text, destination)
                     
             elif message.get("type") == "request_telemetry":
-                node_id = message.get("node_id")
+                node_id = payload.get("node_id")
                 if state.meshtastic:
                     state.meshtastic.request_telemetry(node_id)
                     
             elif message.get("type") == "request_position":
-                node_id = message.get("node_id")
+                node_id = payload.get("node_id")
                 if state.meshtastic:
                     state.meshtastic.request_position(node_id)
                     
@@ -542,6 +769,10 @@ async def connect_device(device_path: Optional[str] = None):
     if not state.meshtastic:
         state.meshtastic = MeshtasticConnector(on_data_callback=process_meshtastic_data)
     
+    # If already connected, avoid duplicate subscriptions/connections
+    if state.meshtastic.connected:
+        return {"status": "connected", "device": device_path or "already-connected"}
+
     if state.meshtastic.connect(device_path):
         return {"status": "connected", "device": device_path or "auto-detected"}
     else:

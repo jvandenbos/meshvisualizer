@@ -1,7 +1,9 @@
 import type { FC } from 'react';
+import { useState } from 'react';
 import { NodeInfo } from '../types';
-import { Battery, Radio, MapPin, Cpu, User, CalendarClock, Signal, Gauge, Info } from 'lucide-react';
+import { Battery, Radio, MapPin, Cpu, User, CalendarClock, Signal, Gauge, Info, Send } from 'lucide-react';
 import SignalStrengthGauge from './SignalStrengthGauge';
+import websocketService from '../services/websocket';
 
 interface NodeDetailsModalProps {
   node: NodeInfo;
@@ -11,6 +13,9 @@ interface NodeDetailsModalProps {
 }
 
 export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onRequestTelemetry, onRequestPosition }) => {
+  const [messageText, setMessageText] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [sendHint, setSendHint] = useState<string | null>(null);
   const formatLastHeard = (timestamp: string) => {
     const date = new Date(timestamp);
     return isNaN(date.getTime()) ? '—' : date.toLocaleString();
@@ -21,6 +26,20 @@ export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onR
     if (node.hop_count === 1) return 'DIRECT';
     if (node.hop_count === undefined || node.hop_count === null || node.hop_count >= 999) return 'UNKNOWN';
     return `${node.hop_count} HOPS`;
+  };
+
+  const handleSend = async () => {
+    const text = messageText.trim();
+    if (!text) return;
+    try {
+      setIsSending(true);
+      websocketService.sendText(text, node.id);
+      setMessageText('');
+      setSendHint('Sent');
+      setTimeout(() => setSendHint(null), 1500);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -80,7 +99,27 @@ export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onR
           </div>
 
           {(onRequestTelemetry || onRequestPosition) && (
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                  placeholder={`Message to ${node.long_name || node.short_name || node.id}`}
+                  className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:outline-none focus:border-cyan-500"
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={isSending || !messageText.trim()}
+                  className="px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded text-white text-sm flex items-center gap-1"
+                  title="Send message"
+                >
+                  <Send className="h-4 w-4" /> Send
+                </button>
+                {sendHint && <span className="text-xs text-gray-400">{sendHint}</span>}
+              </div>
+              <div className="flex items-center justify-end gap-2">
               {onRequestTelemetry && (
                 <button
                   onClick={() => onRequestTelemetry(node.id)}
@@ -97,6 +136,7 @@ export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onR
                   Request Position
                 </button>
               )}
+              </div>
             </div>
           )}
         </div>

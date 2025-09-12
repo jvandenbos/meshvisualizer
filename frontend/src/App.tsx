@@ -27,6 +27,7 @@ function App() {
   const [topHeight, setTopHeight] = useState<number>(300);
   const [isDragging, setIsDragging] = useState(false);
   const [aliases, setAliases] = useState<AliasMap>({});
+  const [chatTargetId, setChatTargetId] = useState<string | null>(null);
 
   // Connect once and register event handlers with cleanup to avoid duplicates
   useEffect(() => {
@@ -304,7 +305,13 @@ function App() {
         {/* Right: Packets (top) + Chat (bottom) with resizable divider */}
         <div ref={rightPaneRef} className="flex-1 min-h-0 flex flex-col">
           <div className="min-h-0 border-b border-gray-700 overflow-hidden" style={{ height: topHeight }}>
-            <MessagesPanel onPacketClick={(p) => setPacketModal(p)} onOpenMap={() => setIsMapOpen(true)} nodes={nodes} aliases={aliases} />
+            <MessagesPanel
+              onPacketClick={(p) => setPacketModal(p)}
+              onOpenMap={() => setIsMapOpen(true)}
+              nodes={nodes}
+              aliases={aliases}
+              onReplyTo={(id) => setChatTargetId(id)}
+            />
           </div>
           <div
             className={`h-2 bg-gray-800 border-y border-gray-700 ${isDragging ? 'cursor-row-resize bg-gray-700' : 'cursor-row-resize'} `}
@@ -312,7 +319,7 @@ function App() {
             title="Drag to resize"
           />
           <div className="flex-1 min-h-0 overflow-hidden">
-            <ChatPanel nodes={nodes} messages={messages} localNodeId={localNodeId || undefined} />
+            <ChatPanel nodes={nodes} messages={messages} localNodeId={localNodeId || undefined} targetNodeId={chatTargetId} />
           </div>
         </div>
       </div>
