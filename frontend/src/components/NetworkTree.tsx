@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ChevronRight, ChevronDown, Radio, Router, Smartphone, Cpu } from 'lucide-react';
 import type { NodeInfo, NetworkLink } from '../types';
 
@@ -20,68 +20,139 @@ export const NetworkTree = ({ nodes, links, localNodeId }: NetworkTreeProps) => 
 
   // Build tree structure from local node outward
   const tree = useMemo(() => {
-    if (!localNodeId) return null;
+    if (!localNodeId) {
+      console.log('[NetworkTree] No local node ID');
+      return null;
+    }
 
     const nodeMap = new Map<string, NodeInfo>();
     nodes.forEach(n => nodeMap.set(n.id, n));
 
     const localNode = nodeMap.get(localNodeId);
-    if (!localNode) return null;
-
-    // If we have links, use them to build adjacency
-    const hasLinks = links && links.length > 0;
-    const adjacency = new Map<string, Set<string>>();
-
-    if (hasLinks) {
-      links.forEach(link => {
-        if (!adjacency.has(link.from_id)) adjacency.set(link.from_id, new Set());
-        if (!adjacency.has(link.to_id)) adjacency.set(link.to_id, new Set());
-        adjacency.get(link.from_id)!.add(link.to_id);
-        adjacency.get(link.to_id)!.add(link.from_id);
-      });
+    if (!localNode) {
+      console.log('[NetworkTree] Local node not found in nodes');
+      return null;
     }
+
+    console.log(`[NetworkTree] Building tree with ${nodes.length} nodes, ${links.length} links`);
 
     // Build tree structure
     const root: TreeNode = { node: localNode, children: [], depth: 0 };
 
-    // If we don't have links, organize by hop count
-    if (!hasLinks || adjacency.size === 0) {
-      // Group nodes by hop count
-      const nodesByHop = new Map<number, NodeInfo[]>();
+    // Group nodes by hop count (excluding local node)
+    const nodesByHop = new Map<number, NodeInfo[]>();
+    nodes.forEach(node => {
+      if (node.id === localNodeId) return; // Skip local node
+      const hopCount = node.hop_count ?? 999;
+      if (!nodesByHop.has(hopCount)) nodesByHop.set(hopCount, []);
+      nodesByHop.get(hopCount)!.push(node);
+    });
 
-      nodes.forEach(node => {
-        if (node.id === localNodeId) return; // Skip local node
-        const hopCount = node.hop_count ?? 999;
-        if (!nodesByHop.has(hopCount)) nodesByHop.set(hopCount, []);
-        nodesByHop.get(hopCount)!.push(node);
+    console.log('[NetworkTree] Nodes by hop count:', {
+      direct: nodesByHop.get(0)?.length || 0,
+      oneHop: nodesByHop.get(1)?.length || 0,
+      twoHop: nodesByHop.get(2)?.length || 0,
+      threeHop: nodesByHop.get(3)?.length || 0
+    });
+
+    // Add direct nodes (hop_count = 0) as immediate children
+    const directNodes = nodesByHop.get(0) || [];
+    directNodes.forEach(node => {
+      root.children.push({
+        node,
+        children: [],
+        depth: 1
       });
+    });
 
-      // Create tree structure based on hop counts
-      // Direct nodes (hop_count = 0) are children of root
-      const directNodes = nodesByHop.get(0) || [];
-      directNodes.forEach(node => {
+    // Add 1-hop nodes as second level
+    const oneHopNodes = nodesByHop.get(1) || [];
+    if (root.children.length > 0) {
+      // Distribute 1-hop nodes among direct nodes
+      oneHopNodes.forEach((node, idx) => {
+        const parentIdx = idx % root.children.length;
+        root.children[parentIdx].children.push({
+          node,
+          children: [],
+          depth: 2
+        });
+      });
+    } else {
+      // No direct nodes, add 1-hop as direct children
+      oneHopNodes.forEach(node => {
         root.children.push({
           node,
           children: [],
           depth: 1
         });
       });
+    }
 
-      // 1-hop nodes are shown as children of direct nodes (simplified)
-      const oneHopNodes = nodesByHop.get(1) || [];
-      if (root.children.length > 0 && oneHopNodes.length > 0) {
-        // Distribute 1-hop nodes among direct nodes
-        oneHopNodes.forEach((node, idx) => {
-          const parentIdx = idx % root.children.length;
-          root.children[parentIdx].children.push({
+    // Add 2-hop nodes as third level
+    const twoHopNodes = nodesByHop.get(2) || [];
+    if (root.children.length > 0) {
+      twoHopNodes.forEach((node, idx) => {
+        const firstLevelIdx = idx % root.children.length;
+        const firstLevel = root.children[firstLevelIdx];
+
+        if (firstLevel.children.length > 0) {
+          // Add to existing second-level nodes
+          const secondLevelIdx = idx % firstLevel.children.length;
+          firstLevel.children[secondLevelIdx].children.push({
+            node,
+            children: [],
+            depth: 3
+          });
+        } else {
+          // Add as second-level node
+          firstLevel.children.push({
             node,
             children: [],
             depth: 2
           });
+        }
+      });
+    } else {
+      // No children, add as direct
+      twoHopNodes.forEach(node => {
+        root.children.push({
+          node,
+          children: [],
+          depth: 1
         });
-      } else if (oneHopNodes.length > 0) {
-        // If no direct nodes, show 1-hop as direct children
-        oneHopNodes.forEach(node => {
+      });
+    }
+
+    // Add remaining nodes (3+ hops and unknown)
+    const remainingHops = [3, 4, 5, 6, 7, 8, 9, 999];
+    remainingHops.forEach(hop => {
+      const hopNodes = nodesByHop.get(hop) || [];
+      if (root.children.length > 0) {
+        hopNodes.forEach((node, idx) => {
+          const firstLevelIdx = idx % root.children.length;
+          const firstLevel = root.children[firstLevelIdx];
+
+          if (firstLevel.children.length > 0) {
+            const secondLevelIdx = idx % firstLevel.children.length;
+            const secondLevel = firstLevel.children[secondLevelIdx];
+
+            if (secondLevel.children.length < 10) { // Limit children per node
+              secondLevel.children.push({
+                node,
+                children: [],
+                depth: 3
+              });
+            }
+          } else {
+            firstLevel.children.push({
+              node,
+              children: [],
+              depth: 2
+            });
+          }
+        });
+      } else {
+        hopNodes.forEach(node => {
           root.children.push({
             node,
             children: [],
@@ -89,91 +160,26 @@ export const NetworkTree = ({ nodes, links, localNodeId }: NetworkTreeProps) => 
           });
         });
       }
-
-      // Add remaining nodes (2+ hops) as a third level
-      const farNodes: NodeInfo[] = [];
-      [2, 3, 4, 5, 999].forEach(hop => {
-        const nodes = nodesByHop.get(hop) || [];
-        farNodes.push(...nodes);
-      });
-
-      if (farNodes.length > 0) {
-        if (root.children.length > 0) {
-          // Distribute among existing children
-          farNodes.forEach((node, idx) => {
-            const parentIdx = idx % root.children.length;
-            const parent = root.children[parentIdx];
-
-            if (parent.children.length > 0) {
-              // Add to first grandchild if exists
-              const grandParentIdx = idx % parent.children.length;
-              parent.children[grandParentIdx].children.push({
-                node,
-                children: [],
-                depth: 3
-              });
-            } else {
-              // Add as direct child
-              parent.children.push({
-                node,
-                children: [],
-                depth: 2
-              });
-            }
-          });
-        } else {
-          // No children at all, just add them to root
-          farNodes.forEach(node => {
-            root.children.push({
-              node,
-              children: [],
-              depth: 1
-            });
-          });
-        }
-      }
-    } else {
-      // Use BFS with links to build tree
-      const visited = new Set<string>();
-      const queue: TreeNode[] = [root];
-      visited.add(localNodeId);
-
-      while (queue.length > 0) {
-        const current = queue.shift()!;
-        const neighbors = adjacency.get(current.node.id) || new Set();
-
-        for (const neighborId of neighbors) {
-          if (!visited.has(neighborId)) {
-            visited.add(neighborId);
-            const neighborNode = nodeMap.get(neighborId);
-            if (neighborNode) {
-              const child: TreeNode = {
-                node: neighborNode,
-                children: [],
-                depth: current.depth + 1
-              };
-              current.children.push(child);
-              if (current.depth < 3) { // Limit depth to prevent too deep trees
-                queue.push(child);
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Auto-expand first two levels
-    const expandSet = new Set([localNodeId]);
-    root.children.forEach(child => {
-      expandSet.add(child.node.id);
-      child.children.forEach(grandchild => {
-        expandSet.add(grandchild.node.id);
-      });
     });
-    setExpanded(expandSet);
 
+    console.log(`[NetworkTree] Tree built: root has ${root.children.length} children`);
     return root;
   }, [nodes, links, localNodeId]);
+
+  // Auto-expand first level after tree is built
+  useEffect(() => {
+    if (tree && localNodeId) {
+      const expandSet = new Set<string>([localNodeId]);
+      // Also expand nodes with children
+      tree.children.forEach(child => {
+        if (child.children.length > 0) {
+          expandSet.add(child.node.id);
+        }
+      });
+      setExpanded(expandSet);
+      console.log('[NetworkTree] Auto-expanded nodes:', expandSet.size);
+    }
+  }, [tree, localNodeId]);
 
   const toggleExpand = (nodeId: string) => {
     const newExpanded = new Set(expanded);
@@ -279,6 +285,7 @@ export const NetworkTree = ({ nodes, links, localNodeId }: NetworkTreeProps) => 
         <div className="text-center">
           <Radio className="h-8 w-8 mx-auto mb-2" />
           <p>No local node detected</p>
+          <p className="text-xs mt-1">Nodes: {nodes.length}, Local ID: {localNodeId || 'none'}</p>
         </div>
       </div>
     );
@@ -302,7 +309,9 @@ export const NetworkTree = ({ nodes, links, localNodeId }: NetworkTreeProps) => 
               <Cpu className="h-3 w-3 text-orange-400" /> Repeater
             </span>
           </div>
-          <div className="text-xs">Click nodes to expand/collapse • Signal strength shown in color</div>
+          <div className="text-xs">
+            Click nodes to expand/collapse • {nodes.length} total nodes • {tree.children.length} direct connections
+          </div>
         </div>
 
         <div className="border border-gray-700 rounded-lg p-2">
