@@ -13,9 +13,11 @@ interface MessagesPanelProps {
   nodes?: NodeInfo[];
   aliases?: AliasMap;
   onReplyTo?: (nodeId: string) => void;
+  testChannelIndex?: number | null;
+  autoRepliesEnabled?: boolean;
 }
 
-export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onOpenMap, nodes, aliases, onReplyTo }) => {
+export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onOpenMap, nodes, aliases, onReplyTo, testChannelIndex, autoRepliesEnabled }) => {
   const [packets, setPackets] = useState<DecodedPacket[]>([]);
   const [filterTab, setFilterTab] = useState<TabKey>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -123,6 +125,19 @@ export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onO
               <Terminal className="h-5 w-5 text-cyan-400" />
               <h2 className="text-lg font-semibold text-white">Messages</h2>
               <span className="text-sm text-gray-400">({filteredPackets.length})</span>
+              {typeof testChannelIndex === 'number' && (
+                <span className="ml-2 text-[11px] px-2 py-0.5 rounded bg-purple-700 text-white border border-purple-600" title="Private channel index">
+                  Priv ch {testChannelIndex}
+                </span>
+              )}
+              {typeof autoRepliesEnabled === 'boolean' && (
+                <span
+                  className={`ml-1 text-[11px] px-2 py-0.5 rounded border ${autoRepliesEnabled ? 'bg-green-700 text-white border-green-600' : 'bg-red-700 text-white border-red-600'}`}
+                  title="Bot auto replies status"
+                >
+                  {autoRepliesEnabled ? 'Auto ON' : 'Auto OFF'}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {onOpenMap && (

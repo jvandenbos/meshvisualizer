@@ -393,6 +393,8 @@ function App() {
               nodes={nodes}
               aliases={aliases}
               onReplyTo={(id) => setChatTargetId(id)}
+              testChannelIndex={testChannelIndex ?? undefined}
+              autoRepliesEnabled={autoRepliesEnabled}
             />
           </div>
           <div
