@@ -57,6 +57,14 @@ export class MeshtasticDecoder {
       };
       portKey = map[eventType] || 'UNKNOWN';
     }
+    // Fallback: sometimes packet.packet_type carries numeric port
+    if (!portKey && packet.packet_type != null) {
+      if (typeof packet.packet_type === 'number') {
+        portKey = this.portNumToString(packet.packet_type);
+      } else if (typeof packet.packet_type === 'string') {
+        portKey = packet.packet_type.toUpperCase();
+      }
+    }
 
     const decoded: DecodedPacket = {
       id: `pkt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,

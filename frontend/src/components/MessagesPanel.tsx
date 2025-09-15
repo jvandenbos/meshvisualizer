@@ -77,7 +77,8 @@ export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onO
     if (channelFilter !== 'ALL') {
       list = list.filter((p) => p.channel === channelFilter);
     }
-    return list;
+    // Sort by timestamp desc for stable ordering
+    return [...list].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }, [packets, filterTab, searchTerm, channelFilter]);
 
   const availableChannels = useMemo(() => {

@@ -133,7 +133,12 @@ class MeshtasticConnector:
             
             # Process based on packet type
             data = None
-            packet_type = packet_dict.get('portnum', 'UNKNOWN')
+            # Determine port number consistently (numeric)
+            port_val = packet_dict.get('portnum', packet.get('portnum'))
+            try:
+                portnum = int(port_val) if port_val is not None else None
+            except Exception:
+                portnum = None
             
             # Log with correct hop calculation
             hop_count_log = (packet.get('hopStart', 0) - packet.get('hopLimit', 0)) if packet.get('hopStart', 0) > 0 else 0
@@ -141,15 +146,15 @@ class MeshtasticConnector:
             snr_log = packet.get('rxSnr') or packet.get('rx_snr')
             logger.info(f"   Type: {packet_type}, RSSI: {rssi_log}, SNR: {snr_log}, Hops: {hop_count_log}")
             
-            if packet_type == 'TEXT_MESSAGE_APP':
+            if portnum == 1:  # TEXT_MESSAGE
                 data = self.process_text_message(packet_dict, from_id, to_id)
-            elif packet_type == 'POSITION_APP':
+            elif portnum == 3:  # POSITION
                 logger.info(f"   📍 Position update from {from_id[:8]}")
                 data = self.process_position(packet_dict, from_id)
-            elif packet_type == 'NODEINFO_APP':
+            elif portnum == 4:  # NODEINFO
                 logger.info(f"   👤 Node info from {from_id[:8]}")
                 data = self.process_node_info(packet_dict, from_id)
-            elif packet_type == 'TELEMETRY_APP':
+            elif portnum == 67:  # TELEMETRY
                 logger.info(f"   📊 Telemetry from {from_id[:8]}")
                 data = self.process_telemetry(packet_dict, from_id)
             else:
