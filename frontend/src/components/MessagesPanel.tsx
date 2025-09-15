@@ -31,7 +31,45 @@ export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onO
       if (isPaused) return;
       try {
         const pkt = MeshtasticDecoder.decodePacket(data);
-        setPackets((prev) => [pkt, ...prev].slice(0, 1000));
+        setPackets((prev) => {
+          const list = [pkt, ...prev];
+          const seen = new Set<string>();
+          const out: DecodedPacket[] = [];
+          const keyFor = (p: DecodedPacket): string => {
+            const t = p.portnum;
+            if (t === 'TEXT_MESSAGE') {
+              const txt = (p.payload?.text || '').toString().trim();
+              const ts = Math.round(p.timestamp.getTime() / 1000);
+              return `TM|${p.from}|${p.to}|${txt}|${ts}`;
+            }
+            if (t === 'POSITION') {
+              const { latitude, longitude, altitude } = p.payload || {};
+              const ts = Math.round(p.timestamp.getTime() / 1000);
+              return `POS|${p.from}|${latitude}|${longitude}|${altitude}|${ts}`;
+            }
+            if (t === 'TELEMETRY') {
+              const { battery, voltage } = p.payload || {};
+              const ts = Math.round(p.timestamp.getTime() / 1000);
+              return `TEL|${p.from}|${battery}|${voltage}|${ts}`;
+            }
+            if (t === 'NODEINFO') {
+              const { id, shortName, longName } = p.payload || {};
+              const ts = Math.round(p.timestamp.getTime() / 1000);
+              return `NI|${id || p.from}|${shortName}|${longName}|${ts}`;
+            }
+            const raw = JSON.stringify(p.payload || {});
+            const ts = Math.round(p.timestamp.getTime() / 1000);
+            return `${t}|${p.from}|${p.to}|${raw}|${ts}`;
+          };
+          for (const it of list) {
+            const k = keyFor(it);
+            if (seen.has(k)) continue;
+            seen.add(k);
+            out.push(it);
+            if (out.length >= 1000) break;
+          }
+          return out;
+        });
       } catch (e) {
         // ignore
       }

@@ -144,7 +144,14 @@ class MeshtasticConnector:
             hop_count_log = (packet.get('hopStart', 0) - packet.get('hopLimit', 0)) if packet.get('hopStart', 0) > 0 else 0
             rssi_log = packet.get('rxRssi') or packet.get('rx_rssi')
             snr_log = packet.get('rxSnr') or packet.get('rx_snr')
-            logger.info(f"   Type: {packet_type}, RSSI: {rssi_log}, SNR: {snr_log}, Hops: {hop_count_log}")
+            ptype_str = (
+                'TEXT_MESSAGE' if portnum == 1 else
+                'POSITION' if portnum == 3 else
+                'NODEINFO' if portnum == 4 else
+                'TELEMETRY' if portnum == 67 else
+                str(portnum) if portnum is not None else 'UNKNOWN'
+            )
+            logger.info(f"   Type: {ptype_str}, RSSI: {rssi_log}, SNR: {snr_log}, Hops: {hop_count_log}")
             
             if portnum == 1:  # TEXT_MESSAGE
                 data = self.process_text_message(packet_dict, from_id, to_id)
