@@ -37,6 +37,31 @@ export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId, testChan
     }
   }, [messages.length]);
 
+  // Reconcile pending messages when we observe our own echo from backend
+  useEffect(() => {
+    if (!localNodeId) return;
+    setPending((prev) => prev.filter((p) => {
+      const delivered = messages.some((m) => {
+        if (m.from_id !== localNodeId) return false;
+        if ((m.message || '').trim() !== p.text.trim()) return false;
+        const isBroadcast = m.to_id === 'broadcast' || m.to_id === '^all' || m.to_id === '4294967295';
+        const destMatches = p.dest === 'broadcast' ? isBroadcast : (m.to_id === p.dest);
+        return destMatches;
+      });
+      return !delivered;
+    }));
+  }, [messages, localNodeId]);
+
+  // Safety: expire very old pending items to avoid infinite "Sending…"
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const now = Date.now();
+      const ttlMs = 30000; // 30s TTL for pending
+      setPending((prev) => prev.filter((p) => (now - p.timestamp) < ttlMs));
+    }, 5000);
+    return () => clearInterval(iv);
+  }, []);
+
   // If a target node is provided (e.g., reply), switch destination
   useEffect(() => {
     if (!targetNodeId) return;
