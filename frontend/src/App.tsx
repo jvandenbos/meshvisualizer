@@ -10,7 +10,8 @@ import { PacketDetailsModal } from './components/PacketDetailsModal';
 import { MapModal } from './components/MapModal';
 import { ChatPanel } from './components/ChatPanel';
 import type { DecodedPacket } from './utils/meshtasticDecoder';
-import { NodeInfo, TextMessage, Session } from './types';
+import { NodeInfo, TextMessage, Session, NetworkLink } from './types';
+import NetworkViz from './components/NetworkViz';
 import websocketService from './services/websocket';
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
   const discoveredIdsRef = useRef<Set<string>>(new Set());
   const recentEventRef = useRef<Map<string, number>>(new Map());
   const messageKeysRef = useRef<Set<string>>(new Set());
+  const [networkLinks, setNetworkLinks] = useState<NetworkLink[]>([]);
 
   // Connect once and register event handlers with cleanup to avoid duplicates
   useEffect(() => {
@@ -55,6 +57,7 @@ function App() {
       console.log('Received initial_state with', data.nodes?.length || 0, 'nodes');
       if (data.session) setSession(data.session);
       if (data.nodes) setNodes(data.nodes);
+      if (Array.isArray(data.links)) setNetworkLinks(data.links);
       if (data.messages) {
         setMessages(data.messages);
         try {
@@ -107,6 +110,25 @@ function App() {
       updateNodeTelemetry(data.node_id, data.device_metrics);
       addEvent('telemetry', `Telemetry: ${data.node_id}`);
     };
+    const onNetworkLink = (data: any) => {
+      try {
+        const link: NetworkLink = {
+          from_id: data.from_id,
+          to_id: data.to_id,
+          rssi: data.rssi,
+          snr: data.snr,
+          success_rate: typeof data.success_rate === 'number' ? data.success_rate : 1,
+          last_seen: data.timestamp,
+          is_direct: !!data.is_direct
+        };
+        setNetworkLinks((prev) => {
+          const map = new Map<string, NetworkLink>();
+          for (const l of prev) map.set(`${l.from_id}-${l.to_id}`, l);
+          map.set(`${link.from_id}-${link.to_id}`, link);
+          return Array.from(map.values());
+        });
+      } catch {}
+    };
     const onSessionReset = (data: any) => {
       setSession(data.session);
       setNodes([]);
@@ -129,6 +151,7 @@ function App() {
     websocketService.on('position_update', onPosition);
     websocketService.on('telemetry', onTelemetry);
     websocketService.on('session_reset', onSessionReset);
+    websocketService.on('network_link', onNetworkLink);
 
     return () => {
       websocketService.off('connected', onConnected);
@@ -140,6 +163,7 @@ function App() {
       websocketService.off('position_update', onPosition);
       websocketService.off('telemetry', onTelemetry);
       websocketService.off('session_reset', onSessionReset);
+      websocketService.off('network_link', onNetworkLink);
       websocketService.disconnect();
     };
   }, []);
@@ -400,8 +424,11 @@ function App() {
             localNodeId={localNodeId || 'unknown'}
           />
         </div>
-        {/* Right: Chat only; Messages accessible via header button */}
+        {/* Right: Network (top) + Chat (bottom) */}
         <div ref={rightPaneRef} className="flex-1 min-h-0 flex flex-col">
+          <div className="basis-1/2 min-h-[220px] border-b border-gray-700 overflow-hidden">
+            <NetworkViz nodes={nodes} links={networkLinks} localNodeId={localNodeId} />
+          </div>
           <div className="flex-1 min-h-0 overflow-hidden">
             <ChatPanel nodes={nodes} messages={messages} localNodeId={localNodeId || undefined} targetNodeId={chatTargetId} testChannelIndex={testChannelIndex ?? undefined} />
           </div>

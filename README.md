@@ -220,6 +220,10 @@ Matching is by exact ID, or a suffix/substring of the ID (e.g., "066a"). Display
 
 The Messenger shows outgoing messages immediately as “Sending…”. When a `text_message` is received from your local node, it flips to “✓ Delivered”. If your device/connector does not echo locally‑sent messages, they will remain in the pending style; we can add a timeout‑based “Sent” state if needed.
 
+## Release Notes
+
+See RELEASE_NOTES.md for the latest changes and upgrade notes.
+
 ## Contributing
 
 Contributions welcome! Please follow these guidelines:
