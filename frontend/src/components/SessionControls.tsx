@@ -1,6 +1,6 @@
 import type { FC } from 'react';
 import { useState, useMemo } from 'react';
-import { PlayCircle, StopCircle, RefreshCw, Activity, Users, MessageSquare } from 'lucide-react';
+import { PlayCircle, StopCircle, RefreshCw, Activity, Users, MessageSquare, Map } from 'lucide-react';
 import { Session } from '../types';
 
 interface SessionControlsProps {
@@ -16,6 +16,8 @@ interface SessionControlsProps {
   channels?: Array<{ index: number; name?: string; encrypted?: boolean }>;
   autoRepliesEnabled?: boolean;
   onToggleAutoReplies?: (enabled: boolean) => void;
+  onOpenMessages?: () => void;
+  onOpenMap?: () => void;
 }
 
 const SessionControls: FC<SessionControlsProps> = ({
@@ -30,7 +32,9 @@ const SessionControls: FC<SessionControlsProps> = ({
   onSetTestChannel,
   channels,
   autoRepliesEnabled,
-  onToggleAutoReplies
+  onToggleAutoReplies,
+  onOpenMessages,
+  onOpenMap
 }) => {
   const [tcInput, setTcInput] = useState<string>(testChannelIndex !== null && testChannelIndex !== undefined ? String(testChannelIndex) : '');
   const encStatus = useMemo(() => {
@@ -91,6 +95,28 @@ const SessionControls: FC<SessionControlsProps> = ({
             <RefreshCw className="w-4 h-4" />
             New Session
           </button>
+
+          {onOpenMessages && (
+            <button
+              onClick={onOpenMessages}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors text-sm"
+              title="Open Messages"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Messages
+            </button>
+          )}
+
+          {onOpenMap && (
+            <button
+              onClick={onOpenMap}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors text-sm"
+              title="Open Map"
+            >
+              <Map className="w-4 h-4" />
+              Map
+            </button>
+          )}
         </div>
       </div>
       

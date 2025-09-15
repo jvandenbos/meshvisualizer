@@ -158,11 +158,13 @@ const ActiveNodes = ({
                       <span className="ml-2 text-xs bg-cyan-600 text-white px-1.5 py-0.5 rounded">MY NODE</span>
                     )}
                   </h3>
-                  <SignalStrengthGauge 
-                    rssi={node.rssi} 
-                    quality={node.signal_quality} 
-                    compact={true} 
-                  />
+                  {node.hop_count === 0 && (
+                    <SignalStrengthGauge 
+                      rssi={node.rssi} 
+                      quality={node.signal_quality} 
+                      compact={true} 
+                    />
+                  )}
                 </div>
 
                 {/* Direct link estimated distance bar */}
@@ -201,8 +203,8 @@ const ActiveNodes = ({
                   {node.voltage !== undefined && node.voltage !== null && (
                     <span>{node.voltage.toFixed(2)}V</span>
                   )}
-                  
-                  {node.snr !== undefined && node.snr !== null && (
+
+                  {node.hop_count === 0 && node.snr !== undefined && node.snr !== null && (
                     <span>SNR: {node.snr.toFixed(1)}</span>
                   )}
                   

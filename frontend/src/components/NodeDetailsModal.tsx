@@ -48,17 +48,17 @@ export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onR
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
       <div className="relative w-full max-w-xl bg-gray-900 rounded-lg border border-gray-700 shadow-xl">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
-          <div className="flex items-center gap-2">
-            <Info className="h-5 w-5 text-cyan-400" />
-            <h3 className="text-lg font-semibold text-white">Node Details</h3>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+            <div className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-cyan-400" />
+              <h3 className="text-lg font-semibold text-white">Node Details</h3>
+            </div>
+            <button className="text-gray-400 hover:text-white" onClick={onClose}>×</button>
           </div>
-          <button className="text-gray-400 hover:text-white" onClick={onClose}>×</button>
-        </div>
 
-        <div className="p-4 space-y-4">
-          <div className="flex items-start gap-4">
-            <div className="flex-1">
+          <div className="p-4 space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="flex-1">
               <div className="flex items-center gap-2">
                 <h4 className="text-xl font-semibold text-white">{node.long_name || node.short_name}</h4>
                 <span className="text-xs px-2 py-1 rounded border border-gray-600 text-gray-300">{hopLabel()}</span>
@@ -71,7 +71,9 @@ export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onR
                 {node.hardware_model && (<span className="flex items-center gap-1"><Cpu className="h-3 w-3" />{node.hardware_model}</span>)}
               </div>
             </div>
-            <SignalStrengthGauge rssi={node.rssi} quality={node.signal_quality} />
+            {node.hop_count === 0 && (
+              <SignalStrengthGauge rssi={node.rssi} quality={node.signal_quality} />
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -79,11 +81,15 @@ export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onR
               <div className="text-xs uppercase tracking-wide text-gray-400">Device</div>
               <div className="text-sm text-gray-300 flex items-center gap-2"><Battery className="h-4 w-4" /> Battery: {node.battery_level ?? '—'}%</div>
               <div className="text-sm text-gray-300">Voltage: {node.voltage !== undefined && node.voltage !== null ? `${node.voltage.toFixed(2)} V` : '—'}</div>
-              <div className="text-sm text-gray-300 flex items-center gap-2"><Gauge className="h-4 w-4" /> SNR: {node.snr !== undefined && node.snr !== null ? `${node.snr.toFixed(1)} dB` : '—'}</div>
+              {node.hop_count === 0 && (
+                <div className="text-sm text-gray-300 flex items-center gap-2"><Gauge className="h-4 w-4" /> SNR: {node.snr !== undefined && node.snr !== null ? `${node.snr.toFixed(1)} dB` : '—'}</div>
+              )}
             </div>
             <div className="bg-gray-800 rounded p-3 space-y-2">
               <div className="text-xs uppercase tracking-wide text-gray-400">Radio</div>
-              <div className="text-sm text-gray-300 flex items-center gap-2"><Signal className="h-4 w-4" /> RSSI: {node.rssi !== undefined && node.rssi !== null ? `${node.rssi} dBm` : '—'}</div>
+              {node.hop_count === 0 && (
+                <div className="text-sm text-gray-300 flex items-center gap-2"><Signal className="h-4 w-4" /> RSSI: {node.rssi !== undefined && node.rssi !== null ? `${node.rssi} dBm` : '—'}</div>
+              )}
               <div className="text-sm text-gray-300 flex items-center gap-2"><Radio className="h-4 w-4" /> Hops: {hopLabel()}</div>
               <div className="text-sm text-gray-300 flex items-center gap-2"><CalendarClock className="h-4 w-4" /> Last Heard: {formatLastHeard(node.last_heard)}</div>
             </div>

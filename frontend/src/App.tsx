@@ -4,7 +4,8 @@ import ActiveNodes from './components/ActiveNodes';
 import EventTicker, { Event } from './components/EventTicker';
 import SessionControls from './components/SessionControls';
 import { NodeDetailsModal } from './components/NodeDetailsModal';
-import { MessagesPanel } from './components/MessagesPanel';
+// MessagesPanel moved into MessagesModal
+import { MessagesModal } from './components/MessagesModal';
 import { PacketDetailsModal } from './components/PacketDetailsModal';
 import { MapModal } from './components/MapModal';
 import { ChatPanel } from './components/ChatPanel';
@@ -23,11 +24,11 @@ function App() {
   const [localNodeId, setLocalNodeId] = useState<string | null>(null);
   const [packetModal, setPacketModal] = useState<DecodedPacket | null>(null);
   const [isMapOpen, setIsMapOpen] = useState(false);
+  const [isMessagesOpen, setIsMessagesOpen] = useState(false);
   const rightPaneRef = useRef<HTMLDivElement | null>(null);
-  const [topHeight, setTopHeight] = useState<number>(300);
-  const [isDragging, setIsDragging] = useState(false);
+  // Removed resizable split; reserve for future network viz
   const [aliases, setAliases] = useState<AliasMap>({});
-  const [chatTargetId, setChatTargetId] = useState<string | null>(null);
+  const [chatTargetId] = useState<string | null>(null);
   const [testChannelIndex, setTestChannelIndex] = useState<number | null>(null);
   const [channelsInfo, setChannelsInfo] = useState<Array<{ index: number; name?: string; encrypted?: boolean }>>([]);
   const [autoRepliesEnabled, setAutoRepliesEnabled] = useState<boolean>(true);
@@ -219,50 +220,7 @@ function App() {
     } catch {}
   }, [testChannelIndex]);
 
-  // Initialize top height relative to pane size and update on resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (!rightPaneRef.current) return;
-      const rect = rightPaneRef.current.getBoundingClientRect();
-      const total = rect.height;
-      const minTop = 160;
-      const minBottom = 140;
-      let desired = Math.max(minTop, Math.min(topHeight, total - minBottom));
-      if (topHeight === 300) {
-        // First-run heuristic ~ 65%
-        desired = Math.max(minTop, Math.min(total * 0.65, total - minBottom));
-      }
-      setTopHeight(desired);
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const onDividerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    setIsDragging(true);
-    e.preventDefault();
-    const startY = e.clientY;
-    const pane = rightPaneRef.current;
-    if (!pane) return;
-    const rect = pane.getBoundingClientRect();
-    const startHeight = topHeight;
-    const onMove = (ev: MouseEvent) => {
-      const delta = ev.clientY - startY;
-      const total = rect.height;
-      const minTop = 160;
-      const minBottom = 140;
-      let newHeight = Math.max(minTop, Math.min(startHeight + delta, total - minBottom));
-      setTopHeight(newHeight);
-    };
-    const onUp = () => {
-      setIsDragging(false);
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  };
+  // Messages moved to modal; right pane uses Chat only
 
   const addEvent = (type: Event['type'], text: string) => {
     const event: Event = {
@@ -429,6 +387,8 @@ function App() {
             }
           } catch {}
         }}
+        onOpenMessages={() => setIsMessagesOpen(true)}
+        onOpenMap={() => setIsMapOpen(true)}
       />
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left: Nodes */}
@@ -440,24 +400,8 @@ function App() {
             localNodeId={localNodeId || 'unknown'}
           />
         </div>
-        {/* Right: Packets (top) + Chat (bottom) with resizable divider */}
+        {/* Right: Chat only; Messages accessible via header button */}
         <div ref={rightPaneRef} className="flex-1 min-h-0 flex flex-col">
-          <div className="min-h-0 border-b border-gray-700 overflow-hidden" style={{ height: topHeight }}>
-            <MessagesPanel
-              onPacketClick={(p) => setPacketModal(p)}
-              onOpenMap={() => setIsMapOpen(true)}
-              nodes={nodes}
-              aliases={aliases}
-              onReplyTo={(id) => setChatTargetId(id)}
-              testChannelIndex={testChannelIndex ?? undefined}
-              autoRepliesEnabled={autoRepliesEnabled}
-            />
-          </div>
-          <div
-            className={`h-2 bg-gray-800 border-y border-gray-700 ${isDragging ? 'cursor-row-resize bg-gray-700' : 'cursor-row-resize'} `}
-            onMouseDown={onDividerMouseDown}
-            title="Drag to resize"
-          />
           <div className="flex-1 min-h-0 overflow-hidden">
             <ChatPanel nodes={nodes} messages={messages} localNodeId={localNodeId || undefined} targetNodeId={chatTargetId} testChannelIndex={testChannelIndex ?? undefined} />
           </div>
@@ -482,6 +426,17 @@ function App() {
 
       {isMapOpen && (
         <MapModal nodes={nodes} onClose={() => setIsMapOpen(false)} localNodeId={localNodeId} />
+      )}
+
+      {isMessagesOpen && (
+        <MessagesModal
+          onClose={() => setIsMessagesOpen(false)}
+          onPacketClick={(p) => setPacketModal(p)}
+          nodes={nodes}
+          aliases={aliases}
+          testChannelIndex={testChannelIndex}
+          autoRepliesEnabled={autoRepliesEnabled}
+        />
       )}
     </div>
   );
