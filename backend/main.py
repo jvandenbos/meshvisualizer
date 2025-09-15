@@ -46,6 +46,7 @@ class AppState:
         self.command_last_seen: Dict[str, float] = {}
         self.env_by_node: Dict[str, Any] = {}
         self.test_channel_index: Optional[int] = None
+        self.auto_reply_times: list[float] = []
 
 state = AppState()
 
@@ -163,7 +164,8 @@ async def handle_text_message(data: Dict):
         timestamp=data["timestamp"],
         rssi=data.get("rssi"),
         snr=data.get("snr"),
-        hop_count=data.get("hop_count", 0)
+        hop_count=data.get("hop_count", 0),
+        channel=data.get("channel")
     )
     
     # Update live state (keep last 100 messages)
@@ -294,6 +296,18 @@ async def maybe_handle_server_command(message: TextMessage):
         return
     state.command_last_seen[key] = now
 
+    # Global budget: cap auto replies in a 60s window to prevent mesh spam
+    try:
+        window = 60.0
+        capacity = 20  # max auto replies per minute
+        state.auto_reply_times = [t for t in state.auto_reply_times if (now - t) < window]
+        if len(state.auto_reply_times) >= capacity:
+            logger.warning("Global auto-reply rate limit reached; dropping reply")
+            return
+        state.auto_reply_times.append(now)
+    except Exception:
+        pass
+
     # Prepare replies
     if cmd == "PING":
         hops = message.hop_count
@@ -304,7 +318,9 @@ async def maybe_handle_server_command(message: TextMessage):
         else:
             hop_phrase = f"{hops} hops"
         reply = f"Acknowledge, you are {hop_phrase} away."
-        state.meshtastic.send_text(reply, destination=str(message.from_id))
+        # Send reply on the same channel if we know it, else default
+        ch = message.channel if hasattr(message, 'channel') else None
+        state.meshtastic.send_text(reply, destination=str(message.from_id), channel_index=ch)
         return
 
     if cmd == "INFO":
@@ -327,7 +343,8 @@ async def maybe_handle_server_command(message: TextMessage):
             f"Uptime: {uptime}. MyID: {my_id}."
         )
         try:
-            state.meshtastic.send_text(reply, destination=str(message.from_id))
+            ch = message.channel if hasattr(message, 'channel') else None
+            state.meshtastic.send_text(reply, destination=str(message.from_id), channel_index=ch)
         except Exception as e:
             logger.error(f"Failed to send INFO reply: {e}")
         return
@@ -335,7 +352,8 @@ async def maybe_handle_server_command(message: TextMessage):
     if cmd == "HELP":
         reply = "Commands: PING, INFO, WEATHER. Send as direct message."
         try:
-            state.meshtastic.send_text(reply, destination=str(message.from_id))
+            ch = message.channel if hasattr(message, 'channel') else None
+            state.meshtastic.send_text(reply, destination=str(message.from_id), channel_index=ch)
         except Exception as e:
             logger.error(f"Failed to send HELP reply: {e}")
         return
@@ -363,7 +381,8 @@ async def maybe_handle_server_command(message: TextMessage):
 
         if not env:
             reply = "Weather: no environmental telemetry available."
-            state.meshtastic.send_text(reply, destination=str(message.from_id))
+            ch = message.channel if hasattr(message, 'channel') else None
+            state.meshtastic.send_text(reply, destination=str(message.from_id), channel_index=ch)
             return
 
         # Format values concisely
@@ -379,7 +398,8 @@ async def maybe_handle_server_command(message: TextMessage):
             parts.append(f"P={p:.0f}hPa")
         reply = ("Weather (" + source + "): " + ", ".join(parts)) if parts else "Weather: telemetry present but no values."
         try:
-            state.meshtastic.send_text(reply, destination=str(message.from_id))
+            ch = message.channel if hasattr(message, 'channel') else None
+            state.meshtastic.send_text(reply, destination=str(message.from_id), channel_index=ch)
         except Exception as e:
             logger.error(f"Failed to send WEATHER reply: {e}")
         return
@@ -392,7 +412,8 @@ async def maybe_handle_server_command(message: TextMessage):
         uptime = (f"{days}d " if days else "") + (f"{hours}h " if hours else "") + (f"{minutes}m" if minutes or (not days and not hours) else "")
         reply = f"Uptime: {uptime}".strip()
         try:
-            state.meshtastic.send_text(reply, destination=str(message.from_id))
+            ch = message.channel if hasattr(message, 'channel') else None
+            state.meshtastic.send_text(reply, destination=str(message.from_id), channel_index=ch)
         except Exception as e:
             logger.error(f"Failed to send UPTIME reply: {e}")
         return
@@ -404,7 +425,8 @@ async def maybe_handle_server_command(message: TextMessage):
         multi = sum(1 for n in nodes if (n.hop_count or 0) >= 2 and (n.hop_count or 999) < 999)
         reply = f"Nodes: {total} (Direct {direct}, Multi {multi})."
         try:
-            state.meshtastic.send_text(reply, destination=str(message.from_id))
+            ch = message.channel if hasattr(message, 'channel') else None
+            state.meshtastic.send_text(reply, destination=str(message.from_id), channel_index=ch)
         except Exception as e:
             logger.error(f"Failed to send NODES reply: {e}")
         return
@@ -419,7 +441,8 @@ async def maybe_handle_server_command(message: TextMessage):
         tail = "" if count <= 5 else f" (+{count-5} more)"
         reply = f"Neighbors: {count}" + (f" [{names}]{tail}" if count else "")
         try:
-            state.meshtastic.send_text(reply, destination=str(message.from_id))
+            ch = message.channel if hasattr(message, 'channel') else None
+            state.meshtastic.send_text(reply, destination=str(message.from_id), channel_index=ch)
         except Exception as e:
             logger.error(f"Failed to send NEIGHBORS reply: {e}")
         return
@@ -820,6 +843,14 @@ async def set_test_channel(payload: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="index must be between 0 and 7")
     state.test_channel_index = idx
     return {"status": "ok", "test_channel_index": state.test_channel_index}
+
+@app.get("/api/device/channels")
+async def get_channels():
+    """Return safe channel info (index, name if any, encrypted: bool)."""
+    if not state.meshtastic or not state.meshtastic.connected:
+        return {"channels": []}
+    info = state.meshtastic.get_channels_info()
+    return info or {"channels": []}
 
 # Serve static files (for production)
 # Uncomment when frontend build is ready

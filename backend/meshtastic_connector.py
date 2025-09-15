@@ -427,3 +427,43 @@ class MeshtasticConnector:
     def get_all_nodes(self) -> Dict[str, Dict]:
         """Get all cached nodes"""
         return self.node_db.copy()
+
+    def get_channels_info(self) -> Optional[Dict[str, Any]]:
+        """Return a safe summary of channel info if available.
+        Structure: { "channels": [ {"index": int, "name": str|None, "encrypted": bool } ] }
+        """
+        if not self.interface:
+            return None
+        info = {"channels": []}
+        try:
+            chans = getattr(self.interface, 'channels', None)
+            if isinstance(chans, dict):
+                for idx, ch in chans.items():
+                    name = None
+                    psk = None
+                    try:
+                        name = getattr(ch.settings, 'name', None) if hasattr(ch, 'settings') else getattr(ch, 'name', None)
+                    except Exception:
+                        name = None
+                    try:
+                        psk = getattr(ch.settings, 'psk', None) if hasattr(ch, 'settings') else getattr(ch, 'psk', None)
+                    except Exception:
+                        psk = None
+                    encrypted = bool(psk)
+                    info["channels"].append({"index": int(idx), "name": name, "encrypted": encrypted})
+                return info
+        except Exception:
+            pass
+        # Fallback: try radioConfig
+        try:
+            rc = getattr(self.interface, 'radioConfig', None)
+            if rc and hasattr(rc, 'channels'):
+                for i, ch in enumerate(rc.channels):
+                    name = getattr(ch.settings, 'name', None) if hasattr(ch, 'settings') else None
+                    psk = getattr(ch.settings, 'psk', None) if hasattr(ch, 'settings') else None
+                    encrypted = bool(psk)
+                    info["channels"].append({"index": i, "name": name, "encrypted": encrypted})
+                return info
+        except Exception:
+            return None
+        return None

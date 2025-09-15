@@ -56,6 +56,7 @@ class TextMessage(BaseModel):
     rssi: Optional[int] = None
     snr: Optional[float] = None
     hop_count: Optional[int] = 0
+    channel: Optional[int] = None
 
 class NetworkLink(BaseModel):
     from_id: str
