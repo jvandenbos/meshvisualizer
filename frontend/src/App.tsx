@@ -31,6 +31,8 @@ function App() {
   const [testChannelIndex, setTestChannelIndex] = useState<number | null>(null);
   const [channelsInfo, setChannelsInfo] = useState<Array<{ index: number; name?: string; encrypted?: boolean }>>([]);
   const [autoRepliesEnabled, setAutoRepliesEnabled] = useState<boolean>(true);
+  const discoveredIdsRef = useRef<Set<string>>(new Set());
+  const recentEventRef = useRef<Map<string, number>>(new Map());
 
   // Connect once and register event handlers with cleanup to avoid duplicates
   useEffect(() => {
@@ -52,11 +54,21 @@ function App() {
       if (data.session) setSession(data.session);
       if (data.nodes) setNodes(data.nodes);
       if (data.messages) setMessages(data.messages);
+      try {
+        // Pre-populate discovered set to avoid duplicate discovery events
+        const set = discoveredIdsRef.current;
+        (data.nodes || []).forEach((n: any) => { if (n?.id) set.add(String(n.id)); });
+      } catch {}
     };
     const onNodeInfo = (data: any) => {
       const nodeData = data.node || data;
       updateNode(nodeData);
-      addEvent('node_discovered', `Node discovered: ${nodeData.short_name || nodeData.id}`);
+      const id = String(nodeData.id);
+      const seen = discoveredIdsRef.current;
+      if (!seen.has(id)) {
+        seen.add(id);
+        addEvent('node_discovered', `Node discovered: ${nodeData.short_name || nodeData.id}`);
+      }
     };
     const onTextMessage = (data: TextMessage) => {
       console.log('[WS] text_message', data);
@@ -229,6 +241,20 @@ function App() {
       text,
       timestamp: new Date()
     };
+    // Dedupe: suppress same type+text within 5 seconds
+    try {
+      const key = `${type}|${text}`;
+      const now = Date.now();
+      const map = recentEventRef.current;
+      // purge
+      for (const [k, t] of Array.from(map.entries())) {
+        if (now - t > 5000) map.delete(k);
+      }
+      if (map.has(key)) {
+        return;
+      }
+      map.set(key, now);
+    } catch {}
     setEvents(prev => [...prev.slice(-99), event]);
   };
 
