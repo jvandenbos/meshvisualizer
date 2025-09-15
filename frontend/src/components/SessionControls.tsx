@@ -1,4 +1,5 @@
 import type { FC } from 'react';
+import { useState, useMemo } from 'react';
 import { PlayCircle, StopCircle, RefreshCw, Activity, Users, MessageSquare } from 'lucide-react';
 import { Session } from '../types';
 
@@ -10,6 +11,9 @@ interface SessionControlsProps {
   onNewSession: () => void;
   onConnect: () => void;
   onDisconnect: () => void;
+  testChannelIndex?: number | null;
+  onSetTestChannel?: (index: number | null) => void;
+  channels?: Array<{ index: number; name?: string; encrypted?: boolean }>;
 }
 
 const SessionControls: FC<SessionControlsProps> = ({
@@ -19,8 +23,18 @@ const SessionControls: FC<SessionControlsProps> = ({
   messageCount,
   onNewSession,
   onConnect,
-  onDisconnect
+  onDisconnect,
+  testChannelIndex,
+  onSetTestChannel,
+  channels
 }) => {
+  const [tcInput, setTcInput] = useState<string>(testChannelIndex !== null && testChannelIndex !== undefined ? String(testChannelIndex) : '');
+  const encStatus = useMemo(() => {
+    if (typeof testChannelIndex !== 'number' || !channels) return null;
+    const found = channels.find(c => c.index === testChannelIndex);
+    if (!found) return null;
+    return found.encrypted ? 'Encrypted' : 'Unencrypted';
+  }, [channels, testChannelIndex]);
   const formatDuration = (startTime: string) => {
     const start = new Date(startTime);
     const now = new Date();
@@ -102,11 +116,49 @@ const SessionControls: FC<SessionControlsProps> = ({
           </>
         )}
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
           <span className="text-sm text-gray-400">
             {isConnected ? 'Connected' : 'Disconnected'}
           </span>
+          {onSetTestChannel && (
+            <div className="flex items-center gap-2 text-xs text-gray-300">
+              <span>Private ch:</span>
+              <input
+                type="number"
+                min={0}
+                max={7}
+                value={tcInput}
+                onChange={(e) => setTcInput(e.target.value)}
+                placeholder={testChannelIndex !== null && testChannelIndex !== undefined ? String(testChannelIndex) : ''}
+                className="w-16 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs focus:outline-none"
+                title="Set private channel index (0–7)"
+              />
+              <button
+                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded"
+                onClick={() => {
+                  const num = Number(tcInput);
+                  if (!Number.isFinite(num)) return;
+                  if (num < 0 || num > 7) return;
+                  onSetTestChannel(num);
+                }}
+              >
+                Set
+              </button>
+              <button
+                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded"
+                onClick={() => { setTcInput(''); onSetTestChannel(null); }}
+              >
+                Clear
+              </button>
+              {encStatus && (
+                <span className={`ml-2 px-2 py-0.5 rounded ${encStatus === 'Encrypted' ? 'bg-green-700 text-white' : 'bg-yellow-700 text-white'}`}
+                  title={encStatus === 'Encrypted' ? 'PSK present for channel' : 'No PSK detected for channel'}>
+                  {encStatus}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

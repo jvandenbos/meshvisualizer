@@ -21,6 +21,7 @@ export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onO
   const [searchTerm, setSearchTerm] = useState('');
   const [isPaused, setIsPaused] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [channelFilter, setChannelFilter] = useState<number | 'ALL'>('ALL');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -71,8 +72,19 @@ export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onO
         JSON.stringify(p.payload).toLowerCase().includes(term)
       );
     }
+    if (channelFilter !== 'ALL') {
+      list = list.filter((p) => p.channel === channelFilter);
+    }
     return list;
-  }, [packets, filterTab, searchTerm]);
+  }, [packets, filterTab, searchTerm, channelFilter]);
+
+  const availableChannels = useMemo(() => {
+    const set = new Set<number>();
+    for (const p of packets) {
+      if (typeof p.channel === 'number') set.add(p.channel);
+    }
+    return Array.from(set).sort((a,b)=>a-b);
+  }, [packets]);
 
   const exportPackets = () => {
     const dataStr = JSON.stringify(packets, null, 2);
@@ -152,6 +164,19 @@ export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onO
                 </button>
               ))}
             </div>
+            <div className="flex items-center gap-2 ml-2">
+              <span className="text-sm text-gray-400">Ch:</span>
+              <select
+                value={channelFilter === 'ALL' ? 'ALL' : String(channelFilter)}
+                onChange={(e) => setChannelFilter(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs focus:outline-none"
+              >
+                <option value="ALL">All</option>
+                {availableChannels.map(ch => (
+                  <option key={ch} value={ch}>{ch}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -185,6 +210,7 @@ export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onO
                         {p.rssi !== undefined && <span>RSSI: {p.rssi} dBm</span>}
                         {p.snr !== undefined && <span>SNR: {p.snr} dB</span>}
                         {p.hopCount !== undefined && <span>Hops: {p.hopCount}</span>}
+                        {typeof p.channel === 'number' && <span>Ch: {p.channel}</span>}
                       </div>
                     </div>
                     <div className="ml-2 flex items-center gap-2">

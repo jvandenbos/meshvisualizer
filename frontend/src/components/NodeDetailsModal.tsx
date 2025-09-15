@@ -10,12 +10,14 @@ interface NodeDetailsModalProps {
   onClose: () => void;
   onRequestTelemetry?: (nodeId: string) => void;
   onRequestPosition?: (nodeId: string) => void;
+  testChannelIndex?: number | null;
 }
 
-export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onRequestTelemetry, onRequestPosition }) => {
+export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onRequestTelemetry, onRequestPosition, testChannelIndex }) => {
   const [messageText, setMessageText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendHint, setSendHint] = useState<string | null>(null);
+  const [usePrivateChannel, setUsePrivateChannel] = useState<boolean>(false);
   const formatLastHeard = (timestamp: string) => {
     const date = new Date(timestamp);
     return isNaN(date.getTime()) ? '—' : date.toLocaleString();
@@ -33,7 +35,8 @@ export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onR
     if (!text) return;
     try {
       setIsSending(true);
-      websocketService.sendText(text, node.id);
+      const channelIndex = usePrivateChannel && typeof testChannelIndex === 'number' ? testChannelIndex : undefined;
+      websocketService.sendText(text, node.id, channelIndex);
       setMessageText('');
       setSendHint('Sent');
       setTimeout(() => setSendHint(null), 1500);
@@ -109,6 +112,12 @@ export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onR
                   placeholder={`Message to ${node.long_name || node.short_name || node.id}`}
                   className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:outline-none focus:border-cyan-500"
                 />
+                {typeof testChannelIndex === 'number' && (
+                  <label className="ml-1 inline-flex items-center gap-1 cursor-pointer select-none text-xs text-gray-300">
+                    <input type="checkbox" className="accent-purple-500" checked={usePrivateChannel} onChange={(e) => setUsePrivateChannel(e.target.checked)} />
+                    <span>Private ch {testChannelIndex}</span>
+                  </label>
+                )}
                 <button
                   onClick={handleSend}
                   disabled={isSending || !messageText.trim()}

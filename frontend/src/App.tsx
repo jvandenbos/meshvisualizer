@@ -29,6 +29,7 @@ function App() {
   const [aliases, setAliases] = useState<AliasMap>({});
   const [chatTargetId, setChatTargetId] = useState<string | null>(null);
   const [testChannelIndex, setTestChannelIndex] = useState<number | null>(null);
+  const [channelsInfo, setChannelsInfo] = useState<Array<{ index: number; name?: string; encrypted?: boolean }>>([]);
 
   // Connect once and register event handlers with cleanup to avoid duplicates
   useEffect(() => {
@@ -112,6 +113,16 @@ function App() {
       }
     };
     fetchStatus();
+    const fetchChannels = async () => {
+      try {
+        const r = await fetch('http://localhost:8000/api/device/channels');
+        if (r.ok) {
+          const info = await r.json();
+          setChannelsInfo(info?.channels || []);
+        }
+      } catch {}
+    };
+    fetchChannels();
     // Load optional aliases
     const fetchAliases = async () => {
       try {
@@ -126,6 +137,20 @@ function App() {
     };
     fetchAliases();
   }, []);
+
+  // Refresh channels when connected or test channel changes
+  useEffect(() => {
+    const fetchChannels = async () => {
+      try {
+        const r = await fetch('http://localhost:8000/api/device/channels');
+        if (r.ok) {
+          const info = await r.json();
+          setChannelsInfo(info?.channels || []);
+        }
+      } catch {}
+    };
+    if (isConnected) fetchChannels();
+  }, [isConnected, testChannelIndex]);
 
   // Initialize top height relative to pane size and update on resize
   useEffect(() => {
@@ -293,6 +318,22 @@ function App() {
         onNewSession={handleNewSession}
         onConnect={handleConnect}
         onDisconnect={handleDisconnect}
+        testChannelIndex={testChannelIndex ?? undefined}
+        onSetTestChannel={async (idx) => {
+          try {
+            const res = await fetch('http://localhost:8000/api/channel/test', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ index: idx })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (idx === null || idx === undefined) setTestChannelIndex(null);
+              else setTestChannelIndex(Number(data.test_channel_index ?? idx));
+            }
+          } catch {}
+        }}
+        channels={channelsInfo}
       />
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left: Nodes */}
@@ -334,6 +375,7 @@ function App() {
           onClose={() => setSelectedNodeId(null)}
           onRequestTelemetry={(id) => websocketService.requestTelemetry(id)}
           onRequestPosition={(id) => websocketService.requestPosition(id)}
+          testChannelIndex={testChannelIndex}
         />
       )}
 
