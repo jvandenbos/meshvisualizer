@@ -247,9 +247,9 @@ async def handle_text_message(data: Dict):
                 node.snr = snr
             node.last_heard = now_ts
             await state.db.upsert_node(node)
-            # Notify clients so UI can refresh hop badges
+            # Notify clients of node state change (avoid colliding with discovery events)
             await broadcast_to_clients({
-                "type": "node_info",
+                "type": "node_update",
                 "data": {"node": node.dict(), "hop_count": node.hop_count},
                 "timestamp": now_ts
             })
@@ -522,12 +522,7 @@ async def handle_position_update(data: Dict):
         state.live_nodes[node_id] = node
         logger.info(f"   ✅ Added to live_nodes from position: {node_id[:8]}, total nodes: {len(state.live_nodes)}")
         await state.db.upsert_node(node)
-        # Also broadcast a node_info so clients create this node immediately
-        await broadcast_to_clients({
-            "type": "node_info",
-            "data": {"node": node.dict(), "hop_count": node.hop_count},
-            "timestamp": datetime.now()
-        })
+        # Do not broadcast a synthetic node_info here; position_update is sufficient
 
 async def handle_telemetry(data: Dict):
     """Handle telemetry update"""
@@ -682,7 +677,7 @@ async def handle_mesh_packet(data: Dict):
             node.last_heard = now_ts
             await state.db.upsert_node(node)
             await broadcast_to_clients({
-                "type": "node_info",
+                "type": "node_update",
                 "data": {"node": node.dict(), "hop_count": node.hop_count},
                 "timestamp": now_ts
             })

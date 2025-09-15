@@ -95,6 +95,12 @@ function App() {
     websocketService.on('disconnected', onDisconnected);
     websocketService.on('initial_state', onInitial);
     websocketService.on('node_info', onNodeInfo);
+    const onNodeUpdate = (data: any) => {
+      const nodeData = data.node || data;
+      updateNode(nodeData);
+      // No discovery event here; this is an update
+    };
+    websocketService.on('node_update', onNodeUpdate);
     websocketService.on('text_message', onTextMessage);
     websocketService.on('position_update', onPosition);
     websocketService.on('telemetry', onTelemetry);
@@ -105,6 +111,7 @@ function App() {
       websocketService.off('disconnected', onDisconnected);
       websocketService.off('initial_state', onInitial);
       websocketService.off('node_info', onNodeInfo);
+      websocketService.off('node_update', onNodeUpdate);
       websocketService.off('text_message', onTextMessage);
       websocketService.off('position_update', onPosition);
       websocketService.off('telemetry', onTelemetry);
