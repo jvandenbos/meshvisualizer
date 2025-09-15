@@ -24,9 +24,8 @@ export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onR
   };
 
   const hopLabel = () => {
-    if (node.hop_count === 0) return 'LOCAL';
-    if (node.hop_count === 1) return 'DIRECT';
     if (node.hop_count === undefined || node.hop_count === null || node.hop_count >= 999) return 'UNKNOWN';
+    if (node.hop_count === 0) return 'DIRECT';
     return `${node.hop_count} HOPS`;
   };
 

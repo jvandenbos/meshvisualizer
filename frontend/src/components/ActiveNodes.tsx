@@ -56,7 +56,7 @@ const ActiveNodes = ({
     return `${Math.floor(diff / 86400)}d ago`;
   };
 
-  // Sort nodes: My node first, then direct (1 hop), then ascending by hop count
+  // Sort nodes: My node first, then direct (0 hop), then ascending by hop count
   const sortedNodes = useMemo(() => [...nodes].sort((a, b) => {
     // My node always first (only by ID match)
     const aIsLocal = a.id === localNodeId;
@@ -70,9 +70,9 @@ const ActiveNodes = ({
     const aHops = a.hop_count ?? 999;
     const bHops = b.hop_count ?? 999;
     
-    // Direct connections (1 hop) come before everything else
-    if (aHops === 1 && bHops !== 1) return -1;
-    if (aHops !== 1 && bHops === 1) return 1;
+    // Direct connections (0 hop) come before everything else
+    if (aHops === 0 && bHops !== 0) return -1;
+    if (aHops !== 0 && bHops === 0) return 1;
     
     // Sort by hop count (ascending: 2, 3, 4...)
     if (aHops !== bHops) {
@@ -129,18 +129,18 @@ const ActiveNodes = ({
                 const isLocal = node.id === localNodeId;
                 const label = isLocal
                   ? 'LOCAL'
-                  : hops === 1
+                  : hops === 0
                   ? 'DIRECT'
                   : hops !== undefined && hops !== null && hops < 999
                   ? `${hops} HOPS`
                   : 'UNKNOWN';
                 const cls = isLocal
                   ? 'bg-green-600 text-white'
-                  : hops === 1
+                  : hops === 0
                   ? 'bg-blue-600 text-white'
-                  : hops === 2
+                  : hops === 1
                   ? 'bg-yellow-600 text-white'
-                  : hops !== undefined && hops !== null && hops >= 3 && hops < 999
+                  : hops !== undefined && hops !== null && hops >= 2 && hops < 999
                   ? 'bg-orange-600 text-white'
                   : 'bg-gray-600 text-white';
                 return (
@@ -166,7 +166,7 @@ const ActiveNodes = ({
                 </div>
 
                 {/* Direct link estimated distance bar */}
-                {node.hop_count === 1 && node.rssi !== undefined && (
+                {node.hop_count === 0 && node.rssi !== undefined && (
                   <div className="mt-2">
                     {(() => {
                       const est = estimateRangeFromRssi(node.rssi);
