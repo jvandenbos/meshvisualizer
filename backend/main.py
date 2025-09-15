@@ -47,6 +47,8 @@ class AppState:
         self.env_by_node: Dict[str, Any] = {}
         self.test_channel_index: Optional[int] = None
         self.auto_reply_times: list[float] = []
+        self.auto_replies_enabled: bool = True
+        self.broadcast_recent: Dict[str, float] = {}
 
 state = AppState()
 
@@ -99,16 +101,48 @@ async def process_meshtastic_data(data: Dict[str, Any]):
         elif data["type"] == "mesh_packet":
             await handle_mesh_packet(data)
         
-        # Broadcast to all WebSocket clients
+        # Broadcast to all WebSocket clients with simple dedupe window
         # Clean data for JSON serialization
         clean_data = json.loads(json.dumps(data, default=str))
-        message = WebSocketMessage(
-            type=data["type"],
-            data=clean_data,
-            timestamp=datetime.now()
-        )
-        logger.info(f"   📡 Broadcasting {data['type']} to {len(state.websocket_clients)} WebSocket clients")
-        await broadcast_to_clients(message.dict())
+        # Build a lightweight dedupe key by type
+        from time import time
+        now = time()
+        ttl = 2.0
+        key = None
+        try:
+            t = data.get('type')
+            if t == 'text_message':
+                key = f"tm:{data.get('from_id')}:{data.get('to_id')}:{data.get('message')}:{int(datetime.fromisoformat(str(data.get('timestamp'))).timestamp())}"
+            elif t == 'mesh_packet':
+                key = f"mp:{data.get('from_id')}:{data.get('to_id')}:{data.get('packet_type')}:{int(datetime.fromisoformat(str(data.get('timestamp'))).timestamp())}"
+            elif t == 'node_info':
+                node = data.get('node', {})
+                key = f"ni:{node.get('id')}:{str(data.get('timestamp'))}"
+            elif t == 'position_update':
+                key = f"pos:{data.get('node_id')}:{data.get('latitude')}:{data.get('longitude')}:{str(data.get('timestamp'))}"
+            elif t == 'telemetry':
+                key = f"tel:{data.get('node_id')}:{str(data.get('timestamp'))}"
+            else:
+                key = f"other:{t}:{str(data.get('timestamp'))}"
+        except Exception:
+            key = None
+        # purge old
+        try:
+            state.broadcast_recent = {k:v for k,v in state.broadcast_recent.items() if (now - v) < ttl}
+        except Exception:
+            state.broadcast_recent = {}
+        if key and key in state.broadcast_recent:
+            logger.info(f"   ⏭️  Suppressed duplicate {data['type']} event")
+        else:
+            if key:
+                state.broadcast_recent[key] = now
+            message = WebSocketMessage(
+                type=data["type"],
+                data=clean_data,
+                timestamp=datetime.now()
+            )
+            logger.info(f"   📡 Broadcasting {data['type']} to {len(state.websocket_clients)} WebSocket clients")
+            await broadcast_to_clients(message.dict())
         
     except Exception as e:
         logger.error(f"Error processing Meshtastic data: {e}")
@@ -235,6 +269,9 @@ async def maybe_handle_server_command(message: TextMessage):
     """
     # Preconditions
     if not state.meshtastic or not state.meshtastic.connected:
+        return
+    if not state.auto_replies_enabled:
+        logger.info("Auto replies disabled; ignoring DM command")
         return
     local_id = state.meshtastic.local_node_id
     if not local_id:
@@ -822,7 +859,8 @@ async def get_device_status():
     return {
         "connected": state.meshtastic.connected if state.meshtastic else False,
         "local_node_id": state.meshtastic.local_node_id if state.meshtastic else None,
-        "test_channel_index": state.test_channel_index
+        "test_channel_index": state.test_channel_index,
+        "auto_replies_enabled": state.auto_replies_enabled
     }
 
 @app.post("/api/channel/test")
@@ -851,6 +889,17 @@ async def get_channels():
         return {"channels": []}
     info = state.meshtastic.get_channels_info()
     return info or {"channels": []}
+
+@app.get("/api/server/settings")
+async def get_server_settings():
+    return {"auto_replies_enabled": state.auto_replies_enabled}
+
+@app.post("/api/server/settings")
+async def set_server_settings(payload: Dict[str, Any]):
+    are = payload.get('auto_replies_enabled')
+    if are is not None:
+        state.auto_replies_enabled = bool(are)
+    return {"auto_replies_enabled": state.auto_replies_enabled}
 
 # Serve static files (for production)
 # Uncomment when frontend build is ready

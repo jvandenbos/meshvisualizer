@@ -30,6 +30,7 @@ function App() {
   const [chatTargetId, setChatTargetId] = useState<string | null>(null);
   const [testChannelIndex, setTestChannelIndex] = useState<number | null>(null);
   const [channelsInfo, setChannelsInfo] = useState<Array<{ index: number; name?: string; encrypted?: boolean }>>([]);
+  const [autoRepliesEnabled, setAutoRepliesEnabled] = useState<boolean>(true);
 
   // Connect once and register event handlers with cleanup to avoid duplicates
   useEffect(() => {
@@ -108,6 +109,7 @@ function App() {
         const data = await res.json();
         if (data?.local_node_id) setLocalNodeId(String(data.local_node_id));
         if (data?.test_channel_index === 0 || data?.test_channel_index) setTestChannelIndex(Number(data.test_channel_index));
+        if (typeof data?.auto_replies_enabled === 'boolean') setAutoRepliesEnabled(!!data.auto_replies_enabled);
       } catch (e) {
         // ignore
       }
@@ -123,6 +125,21 @@ function App() {
       } catch {}
     };
     fetchChannels();
+    // Load persisted private channel
+    try {
+      const stored = localStorage.getItem('testChannelIndex');
+      if (stored !== null) {
+        const idx = Number(stored);
+        if (Number.isFinite(idx)) {
+          setTestChannelIndex(idx);
+          fetch('http://localhost:8000/api/channel/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ index: idx })
+          }).catch(()=>{});
+        }
+      }
+    } catch {}
     // Load optional aliases
     const fetchAliases = async () => {
       try {
@@ -151,6 +168,14 @@ function App() {
     };
     if (isConnected) fetchChannels();
   }, [isConnected, testChannelIndex]);
+
+  // Persist private channel selection
+  useEffect(() => {
+    try {
+      if (typeof testChannelIndex === 'number') localStorage.setItem('testChannelIndex', String(testChannelIndex));
+      else localStorage.removeItem('testChannelIndex');
+    } catch {}
+  }, [testChannelIndex]);
 
   // Initialize top height relative to pane size and update on resize
   useEffect(() => {
@@ -334,6 +359,20 @@ function App() {
           } catch {}
         }}
         channels={channelsInfo}
+        autoRepliesEnabled={autoRepliesEnabled}
+        onToggleAutoReplies={async (enabled) => {
+          try {
+            const r = await fetch('http://localhost:8000/api/server/settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ auto_replies_enabled: enabled })
+            });
+            if (r.ok) {
+              const d = await r.json();
+              setAutoRepliesEnabled(!!d.auto_replies_enabled);
+            }
+          } catch {}
+        }}
       />
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left: Nodes */}

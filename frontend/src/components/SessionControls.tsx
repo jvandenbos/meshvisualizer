@@ -14,6 +14,8 @@ interface SessionControlsProps {
   testChannelIndex?: number | null;
   onSetTestChannel?: (index: number | null) => void;
   channels?: Array<{ index: number; name?: string; encrypted?: boolean }>;
+  autoRepliesEnabled?: boolean;
+  onToggleAutoReplies?: (enabled: boolean) => void;
 }
 
 const SessionControls: FC<SessionControlsProps> = ({
@@ -26,7 +28,9 @@ const SessionControls: FC<SessionControlsProps> = ({
   onDisconnect,
   testChannelIndex,
   onSetTestChannel,
-  channels
+  channels,
+  autoRepliesEnabled,
+  onToggleAutoReplies
 }) => {
   const [tcInput, setTcInput] = useState<string>(testChannelIndex !== null && testChannelIndex !== undefined ? String(testChannelIndex) : '');
   const encStatus = useMemo(() => {
@@ -158,6 +162,18 @@ const SessionControls: FC<SessionControlsProps> = ({
                 </span>
               )}
             </div>
+          )}
+          {typeof autoRepliesEnabled === 'boolean' && onToggleAutoReplies && (
+            <label className="ml-2 inline-flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
+              <span>Auto replies</span>
+              <input
+                type="checkbox"
+                className="accent-cyan-500"
+                checked={!!autoRepliesEnabled}
+                onChange={(e) => onToggleAutoReplies(e.target.checked)}
+                title="Enable/disable bot auto replies to DMs"
+              />
+            </label>
           )}
         </div>
       </div>
