@@ -28,39 +28,134 @@ export const NetworkTree = ({ nodes, links, localNodeId }: NetworkTreeProps) => 
     const localNode = nodeMap.get(localNodeId);
     if (!localNode) return null;
 
-    // Build adjacency list from links
+    // If we have links, use them to build adjacency
+    const hasLinks = links && links.length > 0;
     const adjacency = new Map<string, Set<string>>();
-    links.forEach(link => {
-      if (!adjacency.has(link.from_id)) adjacency.set(link.from_id, new Set());
-      if (!adjacency.has(link.to_id)) adjacency.set(link.to_id, new Set());
-      adjacency.get(link.from_id)!.add(link.to_id);
-      adjacency.get(link.to_id)!.add(link.from_id);
-    });
 
-    // BFS to build tree
-    const visited = new Set<string>();
-    const queue: TreeNode[] = [{ node: localNode, children: [], depth: 0 }];
-    visited.add(localNodeId);
+    if (hasLinks) {
+      links.forEach(link => {
+        if (!adjacency.has(link.from_id)) adjacency.set(link.from_id, new Set());
+        if (!adjacency.has(link.to_id)) adjacency.set(link.to_id, new Set());
+        adjacency.get(link.from_id)!.add(link.to_id);
+        adjacency.get(link.to_id)!.add(link.from_id);
+      });
+    }
 
-    const root = queue[0];
+    // Build tree structure
+    const root: TreeNode = { node: localNode, children: [], depth: 0 };
 
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-      const neighbors = adjacency.get(current.node.id) || new Set();
+    // If we don't have links, organize by hop count
+    if (!hasLinks || adjacency.size === 0) {
+      // Group nodes by hop count
+      const nodesByHop = new Map<number, NodeInfo[]>();
 
-      for (const neighborId of neighbors) {
-        if (!visited.has(neighborId)) {
-          visited.add(neighborId);
-          const neighborNode = nodeMap.get(neighborId);
-          if (neighborNode) {
-            const child: TreeNode = {
-              node: neighborNode,
+      nodes.forEach(node => {
+        if (node.id === localNodeId) return; // Skip local node
+        const hopCount = node.hop_count ?? 999;
+        if (!nodesByHop.has(hopCount)) nodesByHop.set(hopCount, []);
+        nodesByHop.get(hopCount)!.push(node);
+      });
+
+      // Create tree structure based on hop counts
+      // Direct nodes (hop_count = 0) are children of root
+      const directNodes = nodesByHop.get(0) || [];
+      directNodes.forEach(node => {
+        root.children.push({
+          node,
+          children: [],
+          depth: 1
+        });
+      });
+
+      // 1-hop nodes are shown as children of direct nodes (simplified)
+      const oneHopNodes = nodesByHop.get(1) || [];
+      if (root.children.length > 0 && oneHopNodes.length > 0) {
+        // Distribute 1-hop nodes among direct nodes
+        oneHopNodes.forEach((node, idx) => {
+          const parentIdx = idx % root.children.length;
+          root.children[parentIdx].children.push({
+            node,
+            children: [],
+            depth: 2
+          });
+        });
+      } else if (oneHopNodes.length > 0) {
+        // If no direct nodes, show 1-hop as direct children
+        oneHopNodes.forEach(node => {
+          root.children.push({
+            node,
+            children: [],
+            depth: 1
+          });
+        });
+      }
+
+      // Add remaining nodes (2+ hops) as a third level
+      const farNodes: NodeInfo[] = [];
+      [2, 3, 4, 5, 999].forEach(hop => {
+        const nodes = nodesByHop.get(hop) || [];
+        farNodes.push(...nodes);
+      });
+
+      if (farNodes.length > 0) {
+        if (root.children.length > 0) {
+          // Distribute among existing children
+          farNodes.forEach((node, idx) => {
+            const parentIdx = idx % root.children.length;
+            const parent = root.children[parentIdx];
+
+            if (parent.children.length > 0) {
+              // Add to first grandchild if exists
+              const grandParentIdx = idx % parent.children.length;
+              parent.children[grandParentIdx].children.push({
+                node,
+                children: [],
+                depth: 3
+              });
+            } else {
+              // Add as direct child
+              parent.children.push({
+                node,
+                children: [],
+                depth: 2
+              });
+            }
+          });
+        } else {
+          // No children at all, just add them to root
+          farNodes.forEach(node => {
+            root.children.push({
+              node,
               children: [],
-              depth: current.depth + 1
-            };
-            current.children.push(child);
-            if (current.depth < 3) { // Limit depth to prevent too deep trees
-              queue.push(child);
+              depth: 1
+            });
+          });
+        }
+      }
+    } else {
+      // Use BFS with links to build tree
+      const visited = new Set<string>();
+      const queue: TreeNode[] = [root];
+      visited.add(localNodeId);
+
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        const neighbors = adjacency.get(current.node.id) || new Set();
+
+        for (const neighborId of neighbors) {
+          if (!visited.has(neighborId)) {
+            visited.add(neighborId);
+            const neighborNode = nodeMap.get(neighborId);
+            if (neighborNode) {
+              const child: TreeNode = {
+                node: neighborNode,
+                children: [],
+                depth: current.depth + 1
+              };
+              current.children.push(child);
+              if (current.depth < 3) { // Limit depth to prevent too deep trees
+                queue.push(child);
+              }
             }
           }
         }
@@ -68,7 +163,14 @@ export const NetworkTree = ({ nodes, links, localNodeId }: NetworkTreeProps) => 
     }
 
     // Auto-expand first two levels
-    setExpanded(new Set([localNodeId, ...root.children.map(c => c.node.id)]));
+    const expandSet = new Set([localNodeId]);
+    root.children.forEach(child => {
+      expandSet.add(child.node.id);
+      child.children.forEach(grandchild => {
+        expandSet.add(grandchild.node.id);
+      });
+    });
+    setExpanded(expandSet);
 
     return root;
   }, [nodes, links, localNodeId]);
