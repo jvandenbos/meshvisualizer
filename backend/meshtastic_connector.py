@@ -133,35 +133,53 @@ class MeshtasticConnector:
             
             # Process based on packet type
             data = None
-            # Determine port number consistently (numeric)
-            port_val = packet_dict.get('portnum', packet.get('portnum'))
-            try:
-                portnum = int(port_val) if port_val is not None else None
-            except Exception:
-                portnum = None
+            # Determine port consistently (supports numeric and string names)
+            port_raw = packet_dict.get('portnum', packet.get('portnum'))
+            portnum: int | None = None
+            portname: str | None = None
+            if isinstance(port_raw, (int, float)):
+                try:
+                    portnum = int(port_raw)
+                except Exception:
+                    portnum = None
+            elif isinstance(port_raw, str):
+                s = port_raw.upper()
+                portname = s
+                # Map common Meshtastic enum strings to numeric where known
+                name_to_num = {
+                    'TEXT_MESSAGE_APP': 1,
+                    'POSITION_APP': 3,
+                    'NODEINFO_APP': 4,
+                    'TELEMETRY_APP': 67,
+                }
+                portnum = name_to_num.get(s)
             
             # Log with correct hop calculation
             hop_count_log = (packet.get('hopStart', 0) - packet.get('hopLimit', 0)) if packet.get('hopStart', 0) > 0 else 0
             rssi_log = packet.get('rxRssi') or packet.get('rx_rssi')
             snr_log = packet.get('rxSnr') or packet.get('rx_snr')
-            ptype_str = (
-                'TEXT_MESSAGE' if portnum == 1 else
-                'POSITION' if portnum == 3 else
-                'NODEINFO' if portnum == 4 else
-                'TELEMETRY' if portnum == 67 else
-                str(portnum) if portnum is not None else 'UNKNOWN'
-            )
+            ptype_str = None
+            if portnum == 1:
+                ptype_str = 'TEXT_MESSAGE'
+            elif portnum == 3:
+                ptype_str = 'POSITION'
+            elif portnum == 4:
+                ptype_str = 'NODEINFO'
+            elif portnum == 67:
+                ptype_str = 'TELEMETRY'
+            else:
+                ptype_str = portname or (str(portnum) if portnum is not None else 'UNKNOWN')
             logger.info(f"   Type: {ptype_str}, RSSI: {rssi_log}, SNR: {snr_log}, Hops: {hop_count_log}")
             
-            if portnum == 1:  # TEXT_MESSAGE
+            if portnum == 1 or portname == 'TEXT_MESSAGE_APP':  # TEXT_MESSAGE
                 data = self.process_text_message(packet_dict, from_id, to_id)
-            elif portnum == 3:  # POSITION
+            elif portnum == 3 or portname == 'POSITION_APP':  # POSITION
                 logger.info(f"   📍 Position update from {from_id[:8]}")
                 data = self.process_position(packet_dict, from_id)
-            elif portnum == 4:  # NODEINFO
+            elif portnum == 4 or portname == 'NODEINFO_APP':  # NODEINFO
                 logger.info(f"   👤 Node info from {from_id[:8]}")
                 data = self.process_node_info(packet_dict, from_id)
-            elif portnum == 67:  # TELEMETRY
+            elif portnum == 67 or portname == 'TELEMETRY_APP':  # TELEMETRY
                 logger.info(f"   📊 Telemetry from {from_id[:8]}")
                 data = self.process_telemetry(packet_dict, from_id)
             else:
