@@ -1,6 +1,6 @@
 # Release Notes
 
-Date: 2025-09-15
+Date: 2025-09-15 (Updated)
 
 This release focuses on safety (no unsolicited transmissions), reliability (fix message duplication and ordering), and UX improvements (private channel, messages modal, and groundwork for network visualization).
 
@@ -34,8 +34,28 @@ Known limitations
 - Weather replies depend on available telemetry; not all nodes report environment metrics.
 - Success_rate on network links is placeholder; path analytics to improve in upcoming iterations.
 
+## Latest Updates (2025-09-15 Evening)
+
+### Network Visualization Enhancements
+- **Multiple visualization modes**: Switch between Radial, Tree, Grid, and Table views
+  - **Radial view**: Improved with hover tooltips, reduced label clutter, better node spacing
+  - **Tree view**: Hierarchical display with collapsible branches, shows routing paths clearly
+  - **Grid view**: Signal-strength based layout with visual bars for direct connections
+  - **Table view**: Sortable columns for detailed data analysis, handles 100+ nodes
+- **Signal filtering**: RSSI/SNR now only displayed for directly connected nodes (hop_count = 0)
+- **Visual improvements**: Node type icons, color-coded by hop distance, smooth transitions
+
+### Packet Details Modal Improvements
+- **Fixed z-index layering**: Packet details now properly appear above Messages modal
+- **Enhanced visualization**:
+  - Color-coded packet types with icons
+  - Visual RSSI signal strength bar
+  - Organized sections (Routing, Signal Quality, Metadata, Decoded Content)
+  - Collapsible raw data section
+- **Better UX**: Cleaner layout, proper spacing, formatted timestamps
+
 Next up
-- Network visualization (graph) in right‑top space with live links and basic analytics.
 - Path analytics overlay (neighbors, hop distribution, link quality trends).
 - Optional allowlist for DM command senders; advanced rate‑limits.
+- Performance optimizations for very large networks (200+ nodes)
 

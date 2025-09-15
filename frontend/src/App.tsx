@@ -11,7 +11,7 @@ import { MapModal } from './components/MapModal';
 import { ChatPanel } from './components/ChatPanel';
 import type { DecodedPacket } from './utils/meshtasticDecoder';
 import { NodeInfo, TextMessage, Session, NetworkLink } from './types';
-import NetworkViz from './components/NetworkViz';
+import { NetworkViewer } from './components/NetworkViewer';
 import websocketService from './services/websocket';
 
 function App() {
@@ -427,7 +427,7 @@ function App() {
         {/* Right: Network (top) + Chat (bottom) */}
         <div ref={rightPaneRef} className="flex-1 min-h-0 flex flex-col">
           <div className="basis-1/2 min-h-[220px] border-b border-gray-700 overflow-hidden">
-            <NetworkViz nodes={nodes} links={networkLinks} localNodeId={localNodeId} />
+            <NetworkViewer nodes={nodes} links={networkLinks} localNodeId={localNodeId} />
           </div>
           <div className="flex-1 min-h-0 overflow-hidden">
             <ChatPanel nodes={nodes} messages={messages} localNodeId={localNodeId || undefined} targetNodeId={chatTargetId} testChannelIndex={testChannelIndex ?? undefined} />
