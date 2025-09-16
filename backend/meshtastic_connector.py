@@ -81,7 +81,7 @@ class MeshtasticConnector:
             # Method 1: Try nodes database
             if hasattr(interface, 'nodes') and interface.nodes:
                 # Try both decimal and hex node IDs
-                hex_id = f"!{int(self.local_node_id):x}"
+                hex_id = f"!{int(self.local_node_id):08x}"
                 for node_id in [self.local_node_id, hex_id]:
                     if node_id in interface.nodes:
                         local_node = interface.nodes[node_id]
@@ -473,7 +473,7 @@ class MeshtasticConnector:
         link_data = {
             "type": "network_link",
             "from_id": from_id,
-            "to_id": to_id if to_id not in ["4294967295", "^all"] else str(self.local_node_id) if self.local_node_id else "broadcast",  # Broadcast handling
+            "to_id": to_id if to_id not in ["4294967295", "^all"] else self.local_node_hex_id if self.local_node_hex_id else "broadcast",  # Broadcast handling
             "rssi": packet_data.get("rssi"),
             "snr": packet_data.get("snr"),
             "is_direct": packet_data.get("hop_count") == 1,  # Direct connections are 1 hop

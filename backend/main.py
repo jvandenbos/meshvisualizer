@@ -352,7 +352,7 @@ async def maybe_handle_server_command(message: TextMessage):
     # Convert local_id to hex format for comparison
     # Handle both decimal (1109198442) and hex (!421d066a) formats
     local_id_str = str(local_id)
-    local_id_hex = f"!{int(local_id):x}" if local_id_str.isdigit() else local_id_str
+    local_id_hex = f"!{int(local_id):08x}" if local_id_str.isdigit() else local_id_str
 
     # Check if message is for us (handle both decimal and hex formats)
     if to_id != local_id_str and to_id != local_id_hex:

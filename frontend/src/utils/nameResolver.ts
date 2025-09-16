@@ -11,7 +11,7 @@ export function toHexId(id: string): string {
 
   // Convert decimal to hex
   if (/^\d+$/.test(id)) {
-    return `!${parseInt(id).toString(16)}`;
+    return `!${parseInt(id).toString(16).padStart(8, '0')}`;
   }
 
   // Return as-is if not recognized
@@ -46,7 +46,7 @@ export function resolveName(
 
     // If not found and ID is decimal, try converting to hex
     if (!node && /^\d+$/.test(id)) {
-      const hexId = `!${parseInt(id).toString(16)}`;
+      const hexId = `!${parseInt(id).toString(16).padStart(8, '0')}`;
       node = nodes.find(n => n.id === hexId);
     }
 

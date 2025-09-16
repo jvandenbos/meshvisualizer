@@ -40,7 +40,7 @@ export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId, testChan
     } else {
       // Show only messages to/from the selected node (excluding broadcasts)
       // Handle both decimal and hex ID formats
-      const filterHex = `!${parseInt(filterNode).toString(16)}`;
+      const filterHex = `!${parseInt(filterNode).toString(16).padStart(8, '0')}`;
       return messages.filter(m => {
         const isBroadcast = m.to_id === 'broadcast' || m.to_id === '^all' || m.to_id === '4294967295';
         if (isBroadcast) return false; // Exclude broadcasts when filtering by node
@@ -175,7 +175,7 @@ export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId, testChan
         {/* Delivered messages */}
         {filteredMessages.map((m, i) => {
           // Convert IDs for comparison (handle decimal vs hex format)
-          const localIdHex = localNodeId ? `!${parseInt(localNodeId).toString(16)}` : null;
+          const localIdHex = localNodeId ? `!${parseInt(localNodeId).toString(16).padStart(8, '0')}` : null;
 
           const isMine = localNodeId && (m.from_id === localNodeId || m.from_id === localIdHex);
           const isToMe = localNodeId && (m.to_id === localNodeId || m.to_id === localIdHex);
