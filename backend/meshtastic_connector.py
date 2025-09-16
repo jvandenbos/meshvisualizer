@@ -157,11 +157,20 @@ class MeshtasticConnector:
     def on_receive(self, packet, interface):
         """Process incoming packets in real-time (<100ms)"""
         start_time = time.time()
-        
+
         try:
+            # Check if packet is encrypted (not decoded by Meshtastic library)
+            if 'encrypted' in packet and 'decoded' not in packet:
+                logger.warning(f"⚠️ Received encrypted packet that couldn't be decoded - check channel encryption settings")
+                # Still log it for debugging
+                from_id = packet.get('fromId') or packet.get('from')
+                to_id = packet.get('toId') or packet.get('to')
+                logger.info(f"   Encrypted packet from {from_id} to {to_id}")
+                # Could still process as generic packet for visibility
+
             # Extract packet data - handle different packet structures
             packet_dict = packet.get('decoded', packet)
-            
+
             # Try different fields for from_id
             from_id = packet.get('fromId') or packet.get('from')
             if not from_id and 'fromId' in str(packet):
