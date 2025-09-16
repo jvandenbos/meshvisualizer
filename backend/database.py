@@ -129,6 +129,17 @@ class Database:
                     UNIQUE(session_id, from_id, to_id)
                 )
             """)
+
+            # Generated node names table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS generated_names (
+                    node_id TEXT PRIMARY KEY,
+                    generated_name TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    last_used INTEGER NOT NULL,
+                    is_active BOOLEAN DEFAULT TRUE
+                )
+            """)
             
             # Create indexes for performance
             await db.execute("CREATE INDEX IF NOT EXISTS idx_nodes_session ON nodes(session_id)")
@@ -406,4 +417,49 @@ class Database:
                     timestamp=datetime.fromtimestamp(row["timestamp"])
                 ))
             
-            return messages[::-1]  # Reverse to get chronological order
+            return messages
+
+    async def get_or_create_generated_name(self, node_id: str) -> str:
+        """Get existing or create new generated name for a node"""
+        from backend.name_generator import generate_friendly_name
+
+        async with aiosqlite.connect(self.db_path) as db:
+            # Check if we already have a generated name
+            cursor = await db.execute("""
+                SELECT generated_name FROM generated_names
+                WHERE node_id = ? AND is_active = TRUE
+            """, (node_id,))
+            row = await cursor.fetchone()
+
+            if row:
+                # Update last used timestamp
+                await db.execute("""
+                    UPDATE generated_names
+                    SET last_used = ?
+                    WHERE node_id = ?
+                """, (int(datetime.now().timestamp()), node_id))
+                await db.commit()
+                return row[0]
+
+            # Generate new name
+            generated_name = generate_friendly_name(node_id)
+            now = int(datetime.now().timestamp())
+
+            await db.execute("""
+                INSERT OR REPLACE INTO generated_names
+                (node_id, generated_name, created_at, last_used, is_active)
+                VALUES (?, ?, ?, ?, TRUE)
+            """, (node_id, generated_name, now, now))
+            await db.commit()
+
+            return generated_name
+
+    async def deactivate_generated_name(self, node_id: str):
+        """Mark a generated name as inactive (when node provides real name)"""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                UPDATE generated_names
+                SET is_active = FALSE
+                WHERE node_id = ?
+            """, (node_id,))
+            await db.commit()[::-1]  # Reverse to get chronological order

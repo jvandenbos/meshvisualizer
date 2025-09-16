@@ -49,7 +49,7 @@ Known limitations
 - **Fixed z-index layering**: Packet details now properly appear above Messages modal
 - **Enhanced visualization**:
 
-## Latest Updates (2025-09-16 - Evening)
+## Latest Updates (2025-09-16 - Late Evening)
 
 ### DM Bot Command System Fixed
 - **Fixed node ID comparison**: Commands (HELP, INFO, etc.) now work properly - fixed decimal vs hex ID format mismatch
@@ -99,8 +99,15 @@ Known limitations
   - Shows online/offline status
   - Better layout for direct vs multi-hop nodes
 
+### Friendly Node Names (NEW!)
+- **Auto-generated memorable names**: Nodes without real names now get friendly names like `*clever-bridge` or `*hasty-field`
+  - Uses deterministic hash-based generation (same ID always gets same name)
+  - 144 adjectives × 176 nouns = 25,344 unique combinations
+  - Names prefixed with `*` to indicate they're system-generated
+  - Automatically replaced when node broadcasts its real name
+  - Persistent storage in database across sessions
+
 Next up
-- **Friendly node names**: Auto-generate memorable names (e.g., "*green-pet") for nodes without names
 - Path analytics overlay (neighbors, hop distribution, link quality trends).
 - Optional allowlist for DM command senders; advanced rate‑limits.
 - Performance optimizations for very large networks (200+ nodes)

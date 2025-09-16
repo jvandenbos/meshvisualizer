@@ -10,6 +10,7 @@ from pathlib import Path
 
 from backend.database import Database
 from backend.meshtastic_connector import MeshtasticConnector
+from backend.name_generator import get_display_name, is_generated_name
 from backend.models import (
     NodeInfo, MeshPacket, TextMessage, NetworkLink, 
     Session, WebSocketMessage
@@ -204,10 +205,29 @@ async def handle_node_info(data: Dict):
             else:
                 signal_quality = "poor"
 
+        # Get or generate friendly name if no real name provided
+        short_name = node_data.get("short_name")
+        long_name = node_data.get("long_name")
+
+        # Check if we need to generate a friendly name
+        needs_friendly_name = (
+            (not short_name or short_name.startswith("Node-")) and
+            (not long_name or long_name.startswith("Node-"))
+        )
+
+        if needs_friendly_name:
+            # Get or create generated name from database
+            generated_name = await state.db.get_or_create_generated_name(node_id)
+            short_name = generated_name
+            logger.info(f"   🎲 Using generated name: {generated_name} for node {node_id[:8]}")
+        else:
+            # Node has a real name, deactivate any generated name
+            await state.db.deactivate_generated_name(node_id)
+
         node = NodeInfo(
             id=node_id,
-            short_name=node_data.get("short_name", f"Node-{node_id}"),
-            long_name=node_data.get("long_name"),
+            short_name=short_name or f"Node-{node_id}",
+            long_name=long_name,
             hardware_model=node_data.get("hardware_model"),
             role=node_data.get("role", "CLIENT"),
             battery_level=node_data.get("battery_level"),
@@ -556,9 +576,13 @@ async def handle_position_update(data: Dict):
     else:
         # Create a minimal node so we can display it on the map
         logger.info(f"   ➕ Creating node from position update: {node_id[:8]}")
+        # Use generated name for position-only node
+        generated_name = await state.db.get_or_create_generated_name(node_id)
+        logger.info(f"   🎲 Using generated name: {generated_name} for position node {node_id[:8]}")
+
         node = NodeInfo(
             id=node_id,
-            short_name=f"Node-{node_id[:8]}",
+            short_name=generated_name,
             long_name=None,
             hardware_model=None,
             role="CLIENT",
@@ -615,7 +639,7 @@ async def handle_telemetry(data: Dict):
     else:
         # Create minimal node entry with hop count and signal info
         logger.info(f"   ⚠️ Creating new node from telemetry: {node_id[:8]}")
-        
+
         # Calculate signal quality based on RSSI
         rssi = data.get("rssi")
         signal_quality = None
@@ -628,10 +652,14 @@ async def handle_telemetry(data: Dict):
                 signal_quality = "weak"
             else:
                 signal_quality = "poor"
-        
+
+        # Use generated name for telemetry-only node
+        generated_name = await state.db.get_or_create_generated_name(node_id)
+        logger.info(f"   🎲 Using generated name: {generated_name} for telemetry node {node_id[:8]}")
+
         node = NodeInfo(
             id=node_id,
-            short_name=f"Node-{node_id[:8]}",
+            short_name=generated_name,
             battery_level=device_metrics.get("batteryLevel"),
             voltage=device_metrics.get("voltage"),
             rssi=rssi,
