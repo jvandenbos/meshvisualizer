@@ -111,11 +111,15 @@ function App() {
     };
     const onPosition = (data: any) => {
       updateNodePosition(data.node_id, data.latitude, data.longitude, data.altitude);
-      addEvent('position', `Position update: ${data.node_id}`);
+      const node = nodes.find(n => n.id === data.node_id);
+      const nodeName = node?.short_name || data.node_id;
+      addEvent('position', `Position update: ${nodeName}`);
     };
     const onTelemetry = (data: any) => {
       updateNodeTelemetry(data.node_id, data.device_metrics);
-      addEvent('telemetry', `Telemetry: ${data.node_id}`);
+      const node = nodes.find(n => n.id === data.node_id);
+      const nodeName = node?.short_name || data.node_id;
+      addEvent('telemetry', `Telemetry: ${nodeName}`);
     };
     const onNetworkLink = (data: any) => {
       try {
@@ -311,7 +315,7 @@ function App() {
       // Create minimal node if not present so it appears on map
       const minimal: NodeInfo = {
         id: hexId,
-        short_name: `Node-${hexId.slice(0,9)}`,
+        short_name: hexId.slice(0,9),
         long_name: undefined,
         hardware_model: undefined,
         role: 'CLIENT',
@@ -340,7 +344,7 @@ function App() {
       }
       const minimal: NodeInfo = {
         id: hexId,
-        short_name: `Node-${hexId.slice(0,9)}`,
+        short_name: hexId.slice(0,9),
         hop_count: 999,
         is_online: true,
         last_heard: new Date().toISOString(),

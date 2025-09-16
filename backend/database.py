@@ -130,7 +130,23 @@ class Database:
                 )
             """)
 
-            # Generated node names table
+            # Node name mappings - single source of truth for all node names
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS node_names (
+                    node_id TEXT PRIMARY KEY,
+                    real_name TEXT,
+                    generated_name TEXT,
+                    is_local BOOLEAN DEFAULT FALSE,
+                    last_updated INTEGER NOT NULL,
+                    UNIQUE(node_id)
+                )
+            """)
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_node_names_node_id
+                ON node_names(node_id)
+            """)
+
+            # Legacy generated names table (for migration)
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS generated_names (
                     node_id TEXT PRIMARY KEY,
@@ -419,42 +435,76 @@ class Database:
             
             return messages
 
-    async def get_or_create_generated_name(self, node_id: str) -> str:
-        """Get existing or create new generated name for a node"""
+    async def REMOVED_assign_name(self, node_id: str, real_name: str = None, is_local: bool = False) -> str:
+        """
+        Single source of truth for node names.
+
+        Args:
+            node_id: The node ID (hex format)
+            real_name: Real name if available (from node_info packet)
+            is_local: Whether this is the local node
+
+        Returns:
+            The name to use for this node
+        """
         from backend.name_generator import generate_friendly_name
 
         async with aiosqlite.connect(self.db_path) as db:
-            # Check if we already have a generated name
-            cursor = await db.execute("""
-                SELECT generated_name FROM generated_names
-                WHERE node_id = ? AND is_active = TRUE
-            """, (node_id,))
-            row = await cursor.fetchone()
-
-            if row:
-                # Update last used timestamp
-                await db.execute("""
-                    UPDATE generated_names
-                    SET last_used = ?
-                    WHERE node_id = ?
-                """, (int(datetime.now().timestamp()), node_id))
-                await db.commit()
-                return row[0]
-
-            # Generate new name
-            generated_name = generate_friendly_name(node_id)
             now = int(datetime.now().timestamp())
 
-            await db.execute("""
-                INSERT OR REPLACE INTO generated_names
-                (node_id, generated_name, created_at, last_used, is_active)
-                VALUES (?, ?, ?, ?, TRUE)
-            """, (node_id, generated_name, now, now))
-            await db.commit()
+            # Check if we have an existing mapping
+            cursor = await db.execute("""
+                SELECT real_name, generated_name FROM node_names
+                WHERE node_id = ?
+            """, (node_id,))
+            existing = await cursor.fetchone()
 
-            return generated_name
+            if existing:
+                existing_real, existing_generated = existing
 
-    async def deactivate_generated_name(self, node_id: str):
+                # If we have a new real name, update it
+                if real_name and real_name != existing_real and not real_name.startswith("Node-"):
+                    await db.execute("""
+                        UPDATE node_names
+                        SET real_name = ?, last_updated = ?
+                        WHERE node_id = ?
+                    """, (real_name, now, node_id))
+                    await db.commit()
+                    return real_name
+
+                # Return existing real name if we have one
+                if existing_real and not existing_real.startswith("Node-"):
+                    return existing_real
+
+                # Return existing generated name
+                if existing_generated:
+                    return existing_generated
+
+            # New node - create entry
+            if real_name and not real_name.startswith("Node-"):
+                # We have a real name
+                await db.execute("""
+                    INSERT INTO node_names (node_id, real_name, generated_name, is_local, last_updated)
+                    VALUES (?, ?, NULL, ?, ?)
+                """, (node_id, real_name, is_local, now))
+                await db.commit()
+                return real_name
+            else:
+                # Generate a friendly name
+                generated = generate_friendly_name(node_id)
+
+                await db.execute("""
+                    INSERT INTO node_names (node_id, real_name, generated_name, is_local, last_updated)
+                    VALUES (?, NULL, ?, ?, ?)
+                """, (node_id, generated, is_local, now))
+                await db.commit()
+                return generated
+
+    async def REMOVED_get_or_create_generated_name(self, node_id: str) -> str:
+        """Legacy function - removed"""
+        return node_id
+
+    async def REMOVED_deactivate_generated_name(self, node_id: str):
         """Mark a generated name as inactive (when node provides real name)"""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("""

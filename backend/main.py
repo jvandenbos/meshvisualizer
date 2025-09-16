@@ -10,7 +10,7 @@ from pathlib import Path
 
 from backend.database import Database
 from backend.meshtastic_connector import MeshtasticConnector
-from backend.name_generator import get_display_name, is_generated_name
+from backend.node_manager import ensure_hex_id
 from backend.models import (
     NodeInfo, MeshPacket, TextMessage, NetworkLink, 
     Session, WebSocketMessage
@@ -150,25 +150,46 @@ async def process_meshtastic_data(data: Dict[str, Any]):
 
 async def handle_node_info(data: Dict):
     """Handle node information update"""
-    node_data = data["node"]
-    node_id = node_data["id"]
-    logger.info(f"   Processing node_info: {node_id[:8]} = {node_data.get('short_name', 'Unknown')}")
+    raw_node_data = data["node"]
+    node_id = ensure_hex_id(str(raw_node_data.get("id", "")))
+
+    if not node_id:
+        logger.warning("📵 Received node_info with no ID")
+        return
+
+    # Get the short name from the packet
+    short_name = raw_node_data.get("short_name", "")
+    long_name = raw_node_data.get("long_name", "")
+
+    # Determine if this is the local node
+    is_local = (node_id == state.meshtastic.local_node_hex_id if state.meshtastic else False)
+
+    # Use real name if available, otherwise hex ID
+    if is_local and short_name and not short_name.startswith("Node-"):
+        display_name = short_name
+    elif short_name and not short_name.startswith("Node-"):
+        display_name = short_name
+    else:
+        display_name = node_id
+
+    logger.info(f"   Processing node_info: {node_id} = {display_name}")
 
     # Check if node already exists to preserve existing data
     if node_id in state.live_nodes:
-        # Update existing node, preserving data we already have
+        # Update existing node
         node = state.live_nodes[node_id]
-        logger.info(f"   📝 Updating existing node: {node_id[:8]}")
+        logger.info(f"   📝 Updating existing node: {node_id}")
 
-        # Update node info fields
-        if node_data.get("short_name"):
-            node.short_name = node_data.get("short_name")
-        if node_data.get("long_name"):
-            node.long_name = node_data.get("long_name")
-        if node_data.get("hardware_model"):
-            node.hardware_model = node_data.get("hardware_model")
-        if node_data.get("role"):
-            node.role = node_data.get("role")
+        # Update the name
+        node.short_name = display_name
+
+        # Update other fields
+        if long_name:
+            node.long_name = long_name
+        if raw_node_data.get("hardware_model"):
+            node.hardware_model = raw_node_data.get("hardware_model")
+        if raw_node_data.get("role"):
+            node.role = raw_node_data.get("role")
 
         # Update signal/hop info if provided
         if data.get("rssi") is not None:
@@ -190,7 +211,7 @@ async def handle_node_info(data: Dict):
         node.last_heard = data["timestamp"]
     else:
         # Create new node
-        logger.info(f"   ➕ Creating new node: {node_id[:8]}")
+        logger.info(f"   ➕ Creating new node: {node_id}")
 
         # Calculate signal quality based on RSSI
         rssi = data.get("rssi")
@@ -205,33 +226,14 @@ async def handle_node_info(data: Dict):
             else:
                 signal_quality = "poor"
 
-        # Get or generate friendly name if no real name provided
-        short_name = node_data.get("short_name")
-        long_name = node_data.get("long_name")
-
-        # Check if we need to generate a friendly name
-        needs_friendly_name = (
-            (not short_name or short_name.startswith("Node-")) and
-            (not long_name or long_name.startswith("Node-"))
-        )
-
-        if needs_friendly_name:
-            # Get or create generated name from database
-            generated_name = await state.db.get_or_create_generated_name(node_id)
-            short_name = generated_name
-            logger.info(f"   🎲 Using generated name: {generated_name} for node {node_id[:8]}")
-        else:
-            # Node has a real name, deactivate any generated name
-            await state.db.deactivate_generated_name(node_id)
-
         node = NodeInfo(
             id=node_id,
-            short_name=short_name or f"Node-{node_id}",
+            short_name=display_name,  # Already assigned above
             long_name=long_name,
-            hardware_model=node_data.get("hardware_model"),
-            role=node_data.get("role", "CLIENT"),
-            battery_level=node_data.get("battery_level"),
-            voltage=node_data.get("voltage"),
+            hardware_model=raw_node_data.get("hardware_model"),
+            role=raw_node_data.get("role", "CLIENT"),
+            battery_level=raw_node_data.get("battery_level"),
+            voltage=raw_node_data.get("voltage"),
             rssi=rssi,
             snr=data.get("snr"),
             hop_count=data.get("hop_count", 0),
@@ -280,9 +282,10 @@ async def handle_text_message(data: Dict):
             if sender_id in state.live_nodes:
                 node = state.live_nodes[sender_id]
             else:
+                # Use hex ID for unknown nodes
                 node = NodeInfo(
                     id=sender_id,
-                    short_name=f"Node-{sender_id[:8]}",
+                    short_name=sender_id,
                     last_heard=now_ts,
                     is_online=True,
                     hop_count=999
@@ -575,14 +578,22 @@ async def handle_position_update(data: Dict):
         await state.db.upsert_node(state.live_nodes[node_id])
     else:
         # Create a minimal node so we can display it on the map
-        logger.info(f"   ➕ Creating node from position update: {node_id[:8]}")
-        # Use generated name for position-only node
-        generated_name = await state.db.get_or_create_generated_name(node_id)
-        logger.info(f"   🎲 Using generated name: {generated_name} for position node {node_id[:8]}")
+        logger.info(f"   ➕ Creating node from position update: {node_id}")
+
+        # Check if this is our local node
+        is_local = (node_id == state.meshtastic.local_node_hex_id if state.meshtastic else False)
+        if is_local and state.meshtastic and state.meshtastic.local_node_data:
+            # Use the local node's real name
+            display_name = state.meshtastic.local_node_data.get("user", {}).get("shortName", node_id)
+            if display_name and display_name.startswith("Node-"):
+                display_name = node_id
+        else:
+            # Just use hex ID for unknown nodes
+            display_name = node_id
 
         node = NodeInfo(
             id=node_id,
-            short_name=generated_name,
+            short_name=display_name,
             long_name=None,
             hardware_model=None,
             role="CLIENT",
@@ -638,7 +649,7 @@ async def handle_telemetry(data: Dict):
         await state.db.upsert_node(node)
     else:
         # Create minimal node entry with hop count and signal info
-        logger.info(f"   ⚠️ Creating new node from telemetry: {node_id[:8]}")
+        logger.info(f"   ⚠️ Creating new node from telemetry: {node_id}")
 
         # Calculate signal quality based on RSSI
         rssi = data.get("rssi")
@@ -653,13 +664,20 @@ async def handle_telemetry(data: Dict):
             else:
                 signal_quality = "poor"
 
-        # Use generated name for telemetry-only node
-        generated_name = await state.db.get_or_create_generated_name(node_id)
-        logger.info(f"   🎲 Using generated name: {generated_name} for telemetry node {node_id[:8]}")
+        # Check if this is our local node
+        is_local = (node_id == state.meshtastic.local_node_hex_id if state.meshtastic else False)
+        if is_local and state.meshtastic and state.meshtastic.local_node_data:
+            # Use the local node's real name
+            display_name = state.meshtastic.local_node_data.get("user", {}).get("shortName", node_id)
+            if display_name and display_name.startswith("Node-"):
+                display_name = node_id
+        else:
+            # Just use hex ID for unknown nodes
+            display_name = node_id
 
         node = NodeInfo(
             id=node_id,
-            short_name=generated_name,
+            short_name=display_name,
             battery_level=device_metrics.get("batteryLevel"),
             voltage=device_metrics.get("voltage"),
             rssi=rssi,
@@ -734,9 +752,10 @@ async def handle_mesh_packet(data: Dict):
             if sender_id in state.live_nodes:
                 node = state.live_nodes[sender_id]
             else:
+                # Use hex ID for unknown nodes
                 node = NodeInfo(
                     id=sender_id,
-                    short_name=f"Node-{sender_id[:8]}",
+                    short_name=sender_id,
                     last_heard=now_ts,
                     is_online=True,
                     hop_count=999

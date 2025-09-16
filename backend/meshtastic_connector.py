@@ -17,6 +17,7 @@ class MeshtasticConnector:
         self.node_db: Dict[str, NodeInfo] = {}
         self.on_data_callback = on_data_callback
         self.local_node_id: Optional[str] = None
+        self.local_node_hex_id: Optional[str] = None  # Hex format for local node
         self._subscribed = False
         
     def connect(self, device_path: Optional[str] = None) -> bool:
@@ -62,24 +63,72 @@ class MeshtasticConnector:
         # Get local node info
         if hasattr(interface, 'myInfo') and interface.myInfo:
             self.local_node_id = str(interface.myInfo.my_node_num)
-            logger.info(f"Local node ID: {self.local_node_id}")
-            
-            # Create entry for local node
-            self.node_db[self.local_node_id] = {
-                "id": self.local_node_id,
-                "short_name": interface.myInfo.user.shortName if hasattr(interface.myInfo, 'user') else "My Node",
-                "long_name": interface.myInfo.user.longName if hasattr(interface.myInfo, 'user') else "Local Meshtastic Node",
-                "hardware_model": str(interface.myInfo.user.hwModel) if hasattr(interface.myInfo, 'user') else "Local Device",
+            self.local_node_hex_id = f"!{int(self.local_node_id):08x}"  # Store hex format with padding
+            logger.info(f"Local node ID: {self.local_node_id} (hex: {self.local_node_hex_id})")
+
+            # Debug: Check what we have
+            if hasattr(interface.myInfo, 'user'):
+                user = interface.myInfo.user
+                logger.info(f"Local node user info: shortName={getattr(user, 'shortName', 'N/A')}, longName={getattr(user, 'longName', 'N/A')}")
+            else:
+                logger.warning("No user info in myInfo")
+
+            # Try multiple ways to get local node info
+            local_short_name = None
+            local_long_name = None
+            local_hw_model = "Unknown"
+
+            # Method 1: Try nodes database
+            if hasattr(interface, 'nodes') and interface.nodes:
+                # Try both decimal and hex node IDs
+                hex_id = f"!{int(self.local_node_id):x}"
+                for node_id in [self.local_node_id, hex_id]:
+                    if node_id in interface.nodes:
+                        local_node = interface.nodes[node_id]
+                        if 'user' in local_node:
+                            local_user = local_node['user']
+                            local_short_name = local_user.get('shortName', local_short_name)
+                            local_long_name = local_user.get('longName', local_long_name)
+                            local_hw_model = str(local_user.get('hwModel', local_hw_model))
+                            logger.info(f"Got local node from nodes DB: {local_short_name} / {local_long_name}")
+                            break
+
+            # Method 2: Try to get from nodesByNum
+            if not local_short_name and hasattr(interface, 'nodesByNum'):
+                try:
+                    node_num = int(self.local_node_id)
+                    if node_num in interface.nodesByNum:
+                        node = interface.nodesByNum[node_num]
+                        if 'user' in node:
+                            user = node['user']
+                            local_short_name = user.get('shortName', local_short_name)
+                            local_long_name = user.get('longName', local_long_name)
+                            local_hw_model = str(user.get('hwModel', local_hw_model))
+                            logger.info(f"Got local node from nodesByNum: {local_short_name} / {local_long_name}")
+                except (ValueError, AttributeError) as e:
+                    logger.debug(f"Could not get from nodesByNum: {e}")
+
+            # If still no name, log what we have
+            if not local_short_name:
+                logger.warning(f"Could not get local node name from device, will wait for node_info packet")
+
+            # Create entry for local node with hex ID
+            hex_node_id = f"!{int(self.local_node_id):08x}"  # Use 8-digit padding
+            self.node_db[hex_node_id] = {
+                "id": hex_node_id,
+                "short_name": local_short_name,
+                "long_name": local_long_name,
+                "hardware_model": local_hw_model,
                 "role": "CLIENT",
                 "hop_count": 0,  # Local node is always 0 hops
                 "is_local": True
             }
             
-            # Send local node info to backend
-            if self.on_data_callback:
+            # Send local node info to backend if we have a name
+            if self.on_data_callback and local_short_name:
                 local_node_data = {
                     "type": "node_info",
-                    "node": self.node_db[self.local_node_id],
+                    "node": self.node_db[hex_node_id],
                     "hop_count": 0,
                     "timestamp": datetime.now()
                 }
@@ -119,6 +168,9 @@ class MeshtasticConnector:
                 # Sometimes it's in the string representation
                 from_id = self.local_node_id
             from_id = str(from_id) if from_id else self.local_node_id
+
+            # Normalize from_id to consistent hex format
+            from_id = self.normalize_id(from_id)
             
             # Try different fields for to_id
             to_id_raw = packet.get('toId') or packet.get('to') or '^all'
@@ -230,8 +282,33 @@ class MeshtasticConnector:
         except Exception as e:
             logger.error(f"Error processing packet: {e}")
     
+    def normalize_id(self, node_id: str) -> str:
+        """Normalize node ID to consistent 8-digit hex format"""
+        if not node_id:
+            return node_id
+
+        # Already hex format - ensure padding
+        if node_id.startswith('!'):
+            hex_part = node_id[1:]
+            try:
+                decimal_val = int(hex_part, 16)
+                return f"!{decimal_val:08x}"
+            except (ValueError, TypeError):
+                return node_id
+
+        # Convert decimal to hex with padding
+        try:
+            decimal_id = int(node_id)
+            return f"!{decimal_id:08x}"
+        except (ValueError, TypeError):
+            return node_id
+
     def process_text_message(self, packet: Dict, from_id: str, to_id: str) -> Dict:
         """Process text message packet"""
+        # Normalize IDs
+        from_id = self.normalize_id(from_id)
+        to_id = self.normalize_id(to_id) if to_id not in ["4294967295", "^all", "broadcast"] else to_id
+
         message = packet.get('text', '')
         from_name = self.node_db.get(from_id, {}).get('short_name', f"Node-{from_id}")
         to_name = self.node_db.get(to_id, {}).get('short_name', "All" if to_id == "4294967295" else f"Node-{to_id}")
@@ -248,6 +325,8 @@ class MeshtasticConnector:
     
     def process_position(self, packet: Dict, from_id: str) -> Dict:
         """Process position packet"""
+        # Normalize ID
+        from_id = self.normalize_id(from_id)
         position = packet.get('position', {})
         
         # Update node database
@@ -272,10 +351,13 @@ class MeshtasticConnector:
     def process_node_info(self, packet: Dict, from_id: str) -> Dict:
         """Process node info packet"""
         user = packet.get('user', {})
-        
-        # Update node database
-        if from_id not in self.node_db:
-            self.node_db[from_id] = {}
+
+        # Convert to hex ID for consistency
+        hex_from_id = f"!{int(from_id):08x}" if from_id.isdigit() else from_id  # Use 8-digit padding
+
+        # Update node database with hex ID
+        if hex_from_id not in self.node_db:
+            self.node_db[hex_from_id] = {}
         
         # Handle hardware model - convert int to string if needed
         hw_model = user.get('hwModel', 'UNSET')
@@ -297,25 +379,31 @@ class MeshtasticConnector:
             }
             role = role_map.get(role, 'CLIENT')
         
-        self.node_db[from_id].update({
-            "id": from_id,
-            "short_name": user.get('shortName', f"Node-{from_id}"),
+        self.node_db[hex_from_id].update({
+            "id": hex_from_id,
+            "short_name": user.get('shortName', f"Node-{hex_from_id[:8]}"),
             "long_name": user.get('longName', ''),
             "hardware_model": hw_model,
             "role": role,
             "is_licensed": user.get('isLicensed', False)
         })
         
-        logger.info(f"      Node DB updated: {from_id[:8]} = {user.get('shortName', 'Unknown')}, role={role}, hw={hw_model}")
-        
+        logger.info(f"      Node DB updated: {hex_from_id[:8]} = {user.get('shortName', 'Unknown')}, role={role}, hw={hw_model}")
+
+        # Clean up decimal ID entry if it exists
+        if from_id != hex_from_id and from_id in self.node_db:
+            del self.node_db[from_id]
+
         return {
             "type": "node_info",
-            "node": self.node_db[from_id],
+            "node": self.node_db[hex_from_id],
             "timestamp": datetime.now()
         }
     
     def process_telemetry(self, packet: Dict, from_id: str) -> Dict:
         """Process telemetry packet"""
+        # Normalize ID
+        from_id = self.normalize_id(from_id)
         telemetry = packet.get('telemetry', {})
         
         # Device metrics
@@ -354,6 +442,9 @@ class MeshtasticConnector:
     
     def process_generic_packet(self, packet: Dict, from_id: str, to_id: str) -> Dict:
         """Process generic packet"""
+        # Normalize IDs
+        from_id = self.normalize_id(from_id)
+        to_id = self.normalize_id(to_id) if to_id not in ["4294967295", "^all", "broadcast"] else to_id
         # Only include serializable payload data
         safe_payload = {}
         if isinstance(packet, dict):
@@ -374,6 +465,9 @@ class MeshtasticConnector:
     
     def update_network_link(self, from_id: str, to_id: str, packet_data: Dict):
         """Update network topology based on packet routing"""
+        # Normalize IDs
+        from_id = self.normalize_id(from_id)
+        to_id = self.normalize_id(to_id) if to_id not in ["4294967295", "^all", "broadcast"] else to_id
         # This is called for each packet to build network topology
         # The actual link data would be sent via callback
         link_data = {
