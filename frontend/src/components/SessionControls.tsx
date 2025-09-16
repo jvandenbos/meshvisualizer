@@ -8,6 +8,7 @@ interface SessionControlsProps {
   isConnected: boolean;
   nodeCount: number;
   messageCount: number;
+  localNodeInfo?: { short_name?: string; long_name?: string; hardware_model?: string } | null;
   onNewSession: () => void;
   onConnect: () => void;
   onDisconnect: () => void;
@@ -25,6 +26,7 @@ const SessionControls: FC<SessionControlsProps> = ({
   isConnected,
   nodeCount,
   messageCount,
+  localNodeInfo,
   onNewSession,
   onConnect,
   onDisconnect,
@@ -149,7 +151,12 @@ const SessionControls: FC<SessionControlsProps> = ({
         <div className="flex items-center gap-4">
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
           <span className="text-sm text-gray-400">
-            {isConnected ? 'Connected' : 'Disconnected'}
+            {isConnected ?
+              (localNodeInfo ?
+                `Connected to ${localNodeInfo.long_name || localNodeInfo.short_name || 'Local Node'}` :
+                'Connected') :
+              'Disconnected'
+            }
           </span>
           {onSetTestChannel && (
             <div className="flex items-center gap-2 text-xs text-gray-300">

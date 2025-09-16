@@ -2,6 +2,22 @@ import { NodeInfo } from '../types';
 
 export type AliasMap = Record<string, string>;
 
+// Convert any node ID format to hex format (!xxxxxxxx)
+export function toHexId(id: string): string {
+  if (!id) return id;
+
+  // Already in hex format
+  if (id.startsWith('!')) return id;
+
+  // Convert decimal to hex
+  if (/^\d+$/.test(id)) {
+    return `!${parseInt(id).toString(16)}`;
+  }
+
+  // Return as-is if not recognized
+  return id;
+}
+
 // Resolve a human-readable display name for a node ID, preferring:
 // 1) Node.long_name (from live nodes)
 // 2) Alias match by exact ID, or substring/endsWith of ID
@@ -42,9 +58,9 @@ export function resolveName(
         if (a) return a;
       }
       if (node.short_name && node.short_name.trim().length > 0) return node.short_name;
-      // Return a shortened version of the ID for better display
-      if (id.startsWith('!')) return id.substring(0, 9); // Show first 8 hex chars
-      return id;
+      // Return hex version of the ID for better display
+      const hexId = toHexId(id);
+      return hexId.substring(0, 9); // Show first 8 hex chars
     }
   }
 
@@ -54,9 +70,10 @@ export function resolveName(
     if (a) return a;
   }
 
-  // Return a shortened version of hex IDs for better display
-  if (id.startsWith('!')) return fallback || id.substring(0, 9);
-  return fallback || id;
+  // Return hex version of the ID for better display
+  const hexId = toHexId(id);
+  if (hexId.startsWith('!')) return fallback || hexId.substring(0, 9);
+  return fallback || hexId;
 }
 
 function aliasForId(id: string, aliases: AliasMap): string | null {

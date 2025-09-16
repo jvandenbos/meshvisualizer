@@ -49,7 +49,7 @@ Known limitations
 - **Fixed z-index layering**: Packet details now properly appear above Messages modal
 - **Enhanced visualization**:
 
-## Latest Updates (2025-09-16)
+## Latest Updates (2025-09-16 - Evening)
 
 ### DM Bot Command System Fixed
 - **Fixed node ID comparison**: Commands (HELP, INFO, etc.) now work properly - fixed decimal vs hex ID format mismatch
@@ -84,13 +84,23 @@ Known limitations
   - Preserves position, telemetry, battery data when updating names
   - Nodes progressively gain complete information over time
 - **Proper ID format handling**: Backend correctly compares decimal and hex node IDs for command processing
-  - Color-coded packet types with icons
-  - Visual RSSI signal strength bar
-  - Organized sections (Routing, Signal Quality, Metadata, Decoded Content)
-  - Collapsible raw data section
-- **Better UX**: Cleaner layout, proper spacing, formatted timestamps
+- **Message sending fix**: Hex node IDs now properly converted to decimal for Meshtastic library
+- **Local node info**: Backend now fetches and exposes local node name/hardware details via status endpoint
+
+### UI Enhancements
+- **Consistent hex node IDs**: All node IDs now displayed in hex format (!421d066a) throughout UI
+- **Timestamp display**: Messages now show timestamps for all messages, not just sent ones
+- **Local node display**: Connection status now shows "Connected to [node name]" instead of generic "Connected"
+- **Node deduplication**: Fixed issue where nodes could appear twice with decimal and hex IDs
+- **Enhanced NodeDetailsModal**:
+  - Shows both short and long names when available
+  - Displays node ID with hash icon
+  - Reorganized sections: "Power & Signal" and "Network"
+  - Shows online/offline status
+  - Better layout for direct vs multi-hop nodes
 
 Next up
+- **Friendly node names**: Auto-generate memorable names (e.g., "*green-pet") for nodes without names
 - Path analytics overlay (neighbors, hop distribution, link quality trends).
 - Optional allowlist for DM command senders; advanced rate‑limits.
 - Performance optimizations for very large networks (200+ nodes)

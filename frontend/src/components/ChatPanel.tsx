@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Send, UserCircle2 } from 'lucide-react';
 import { TextMessage, NodeInfo } from '../types';
-import { resolveName } from '../utils/nameResolver';
+import { resolveName, toHexId } from '../utils/nameResolver';
 import websocketService from '../services/websocket';
 
 interface ChatPanelProps {
@@ -26,7 +26,8 @@ export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId, testChan
   const nodeOptions = useMemo(() => {
     const opts = [{ id: 'broadcast', name: 'All Messages' }];
     for (const n of nodes) {
-      opts.push({ id: n.id, name: n.long_name || n.short_name || n.id });
+      const hexId = toHexId(n.id);
+      opts.push({ id: n.id, name: n.long_name || n.short_name || hexId });
     }
     return opts;
   }, [nodes]);
@@ -139,9 +140,12 @@ export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId, testChan
                 className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs focus:outline-none"
               >
                 <option value="broadcast">Broadcast</option>
-                {nodes.map(n => (
-                  <option key={n.id} value={n.id}>{n.long_name || n.short_name || n.id}</option>
-                ))}
+                {nodes.map(n => {
+                  const hexId = toHexId(n.id);
+                  return (
+                    <option key={n.id} value={n.id}>{n.long_name || n.short_name || hexId}</option>
+                  );
+                })}
               </select>
             </div>
             {typeof testChannelIndex === 'number' && (
@@ -214,9 +218,10 @@ export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId, testChan
               )}
               <span className="text-gray-400">: </span>
               <span className="whitespace-pre-wrap break-words">{m.message}</span>
-              {isMine && (
-                <span className="text-gray-500 text-xs"> · ✓ Delivered {new Date(m.timestamp).toLocaleTimeString()}</span>
-              )}
+              <span className="text-gray-500 text-xs ml-2">
+                · {new Date(m.timestamp).toLocaleTimeString()}
+                {isMine && ' ✓'}
+              </span>
             </div>
           );
         })}

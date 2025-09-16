@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { AliasMap } from './utils/nameResolver';
+import { toHexId, type AliasMap } from './utils/nameResolver';
 import ActiveNodes from './components/ActiveNodes';
 import EventTicker, { Event } from './components/EventTicker';
 import SessionControls from './components/SessionControls';
@@ -23,6 +23,7 @@ function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [localNodeId, setLocalNodeId] = useState<string | null>(null);
+  const [localNodeInfo, setLocalNodeInfo] = useState<{ short_name?: string; long_name?: string; hardware_model?: string } | null>(null);
   const [packetModal, setPacketModal] = useState<DecodedPacket | null>(null);
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [isMessagesOpen, setIsMessagesOpen] = useState(false);
@@ -56,7 +57,11 @@ function App() {
     const onInitial = (data: any) => {
       console.log('Received initial_state with', data.nodes?.length || 0, 'nodes');
       if (data.session) setSession(data.session);
-      if (data.nodes) setNodes(data.nodes);
+      if (data.nodes) {
+        // Convert all node IDs to hex format
+        const hexNodes = data.nodes.map((n: any) => ({ ...n, id: toHexId(n.id) }));
+        setNodes(hexNodes);
+      }
       if (Array.isArray(data.links)) setNetworkLinks(data.links);
       if (data.messages) {
         setMessages(data.messages);
@@ -77,12 +82,14 @@ function App() {
     };
     const onNodeInfo = (data: any) => {
       const nodeData = data.node || data;
-      updateNode(nodeData);
-      const id = String(nodeData.id);
+      // Convert node ID to hex format for consistency
+      const hexNodeData = { ...nodeData, id: toHexId(nodeData.id) };
+      updateNode(hexNodeData);
+      const id = toHexId(String(nodeData.id));
       const seen = discoveredIdsRef.current;
       if (!seen.has(id)) {
         seen.add(id);
-        addEvent('node_discovered', `Node discovered: ${nodeData.short_name || nodeData.id}`);
+        addEvent('node_discovered', `Node discovered: ${nodeData.short_name || id}`);
       }
     };
     const onTextMessage = (data: TextMessage) => {
@@ -143,7 +150,9 @@ function App() {
     websocketService.on('node_info', onNodeInfo);
     const onNodeUpdate = (data: any) => {
       const nodeData = data.node || data;
-      updateNode(nodeData);
+      // Convert node ID to hex format for consistency
+      const hexNodeData = { ...nodeData, id: toHexId(nodeData.id) };
+      updateNode(hexNodeData);
       // No discovery event here; this is an update
     };
     websocketService.on('node_update', onNodeUpdate);
@@ -174,7 +183,8 @@ function App() {
       try {
         const res = await fetch('http://localhost:8000/api/device/status');
         const data = await res.json();
-        if (data?.local_node_id) setLocalNodeId(String(data.local_node_id));
+        if (data?.local_node_id) setLocalNodeId(toHexId(String(data.local_node_id)));
+        if (data?.local_node_info) setLocalNodeInfo(data.local_node_info);
         if (data?.test_channel_index === 0 || data?.test_channel_index) setTestChannelIndex(Number(data.test_channel_index));
         if (typeof data?.auto_replies_enabled === 'boolean') setAutoRepliesEnabled(!!data.auto_replies_enabled);
       } catch (e) {
@@ -272,27 +282,36 @@ function App() {
 
   const updateNode = (nodeData: Partial<NodeInfo>) => {
     setNodes(prev => {
-      const index = prev.findIndex(n => n.id === nodeData.id);
+      // Check for existing node by both hex and decimal formats
+      const nodeHexId = toHexId(nodeData.id || '');
+      const index = prev.findIndex(n => {
+        const existingHexId = toHexId(n.id);
+        return existingHexId === nodeHexId;
+      });
+
       if (index >= 0) {
         const updated = [...prev];
-        updated[index] = { ...updated[index], ...nodeData };
+        // Always use hex ID for consistency
+        updated[index] = { ...updated[index], ...nodeData, id: nodeHexId };
         return updated;
       } else {
-        return [...prev, nodeData as NodeInfo];
+        // Add new node with hex ID
+        return [...prev, { ...nodeData, id: nodeHexId } as NodeInfo];
       }
     });
   };
 
   const updateNodePosition = (nodeId: string, lat?: number, lon?: number, alt?: number) => {
+    const hexId = toHexId(nodeId);
     setNodes(prev => {
-      const idx = prev.findIndex(n => n.id === nodeId);
+      const idx = prev.findIndex(n => n.id === hexId);
       if (idx >= 0) {
-        return prev.map(node => node.id === nodeId ? { ...node, latitude: lat, longitude: lon, altitude: alt } : node);
+        return prev.map(node => node.id === hexId ? { ...node, latitude: lat, longitude: lon, altitude: alt } : node);
       }
       // Create minimal node if not present so it appears on map
       const minimal: NodeInfo = {
-        id: nodeId,
-        short_name: `Node-${String(nodeId).slice(0,8)}`,
+        id: hexId,
+        short_name: `Node-${hexId.slice(0,9)}`,
         long_name: undefined,
         hardware_model: undefined,
         role: 'CLIENT',
@@ -313,14 +332,15 @@ function App() {
   };
 
   const updateNodeTelemetry = (nodeId: string, metrics: any) => {
+    const hexId = toHexId(nodeId);
     setNodes(prev => {
-      const idx = prev.findIndex(n => n.id === nodeId);
+      const idx = prev.findIndex(n => n.id === hexId);
       if (idx >= 0) {
-        return prev.map(node => node.id === nodeId ? { ...node, battery_level: metrics.batteryLevel, voltage: metrics.voltage } : node);
+        return prev.map(node => node.id === hexId ? { ...node, battery_level: metrics.batteryLevel, voltage: metrics.voltage } : node);
       }
       const minimal: NodeInfo = {
-        id: nodeId,
-        short_name: `Node-${String(nodeId).slice(0,8)}`,
+        id: hexId,
+        short_name: `Node-${hexId.slice(0,9)}`,
         hop_count: 999,
         is_online: true,
         last_heard: new Date().toISOString(),
@@ -378,6 +398,7 @@ function App() {
         isConnected={isConnected}
         nodeCount={nodes.length}
         messageCount={messages.length}
+        localNodeInfo={localNodeInfo}
         onNewSession={handleNewSession}
         onConnect={handleConnect}
         onDisconnect={handleDisconnect}

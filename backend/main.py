@@ -798,6 +798,18 @@ async def websocket_endpoint(websocket: WebSocket):
             if message.get("type") == "send_text":
                 text = payload.get("text", "")
                 destination = payload.get("destination")
+
+                # Convert hex node ID to decimal if needed
+                # Meshtastic library expects decimal IDs for sendText
+                if destination and destination.startswith("!"):
+                    try:
+                        hex_part = destination[1:]  # Remove the ! prefix
+                        destination = str(int(hex_part, 16))  # Convert to decimal string
+                        logger.info(f"Converted hex destination {payload.get('destination')} to decimal {destination}")
+                    except ValueError:
+                        logger.error(f"Failed to convert hex destination: {destination}")
+                        destination = payload.get("destination")  # Fall back to original
+
                 channel_index = payload.get("channel_index")
                 try:
                     if isinstance(channel_index, str) and channel_index.isdigit():
@@ -906,9 +918,22 @@ async def disconnect_device():
 @app.get("/api/device/status")
 async def get_device_status():
     """Get device connection status"""
+    local_node_info = None
+    if state.meshtastic and state.meshtastic.local_node_id:
+        # Get the local node info from our live nodes
+        local_node_id = state.meshtastic.local_node_id
+        if local_node_id in state.live_nodes:
+            node = state.live_nodes[local_node_id]
+            local_node_info = {
+                "short_name": node.short_name,
+                "long_name": node.long_name,
+                "hardware_model": node.hardware_model
+            }
+
     return {
         "connected": state.meshtastic.connected if state.meshtastic else False,
         "local_node_id": state.meshtastic.local_node_id if state.meshtastic else None,
+        "local_node_info": local_node_info,
         "test_channel_index": state.test_channel_index,
         "auto_replies_enabled": state.auto_replies_enabled
     }

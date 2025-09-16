@@ -1,7 +1,7 @@
 import type { FC } from 'react';
 import { useState } from 'react';
 import { NodeInfo } from '../types';
-import { Battery, Radio, MapPin, Cpu, User, CalendarClock, Signal, Gauge, Info, Send } from 'lucide-react';
+import { Battery, Radio, MapPin, Cpu, User, CalendarClock, Signal, Gauge, Info, Send, Hash } from 'lucide-react';
 import SignalStrengthGauge from './SignalStrengthGauge';
 import websocketService from '../services/websocket';
 
@@ -63,9 +63,19 @@ export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onR
                 <h4 className="text-xl font-semibold text-white">{node.long_name || node.short_name}</h4>
                 <span className="text-xs px-2 py-1 rounded border border-gray-600 text-gray-300">{hopLabel()}</span>
               </div>
-              {node.short_name && node.long_name && (
-                <div className="text-sm text-gray-400">{node.short_name}</div>
+              {/* Display both names if different */}
+              {node.short_name && node.long_name && node.short_name !== node.long_name && (
+                <div className="text-sm text-gray-400 mt-1">Short Name: {node.short_name}</div>
               )}
+              {/* Display just short name if no long name */}
+              {node.short_name && !node.long_name && (
+                <div className="text-sm text-gray-400 mt-1">Short Name: {node.short_name}</div>
+              )}
+              {/* Node ID */}
+              <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <Hash className="h-3 w-3" />
+                <span className="font-mono">{node.id}</span>
+              </div>
               <div className="mt-2 text-sm text-gray-400 flex items-center gap-3">
                 {node.role && (<span className="flex items-center gap-1"><User className="h-3 w-3" />{node.role}</span>)}
                 {node.hardware_model && (<span className="flex items-center gap-1"><Cpu className="h-3 w-3" />{node.hardware_model}</span>)}
@@ -78,20 +88,44 @@ export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onR
 
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-gray-800 rounded p-3 space-y-2">
-              <div className="text-xs uppercase tracking-wide text-gray-400">Device</div>
-              <div className="text-sm text-gray-300 flex items-center gap-2"><Battery className="h-4 w-4" /> Battery: {node.battery_level ?? '—'}%</div>
-              <div className="text-sm text-gray-300">Voltage: {node.voltage !== undefined && node.voltage !== null ? `${node.voltage.toFixed(2)} V` : '—'}</div>
-              {node.hop_count === 0 && (
-                <div className="text-sm text-gray-300 flex items-center gap-2"><Gauge className="h-4 w-4" /> SNR: {node.snr !== undefined && node.snr !== null ? `${node.snr.toFixed(1)} dB` : '—'}</div>
+              <div className="text-xs uppercase tracking-wide text-gray-400">Power & Signal</div>
+              <div className="text-sm text-gray-300 flex items-center gap-2">
+                <Battery className="h-4 w-4" />
+                Battery: {node.battery_level !== undefined && node.battery_level !== null ? `${node.battery_level}%` : '—'}
+              </div>
+              <div className="text-sm text-gray-300">
+                Voltage: {node.voltage !== undefined && node.voltage !== null ? `${node.voltage.toFixed(2)} V` : '—'}
+              </div>
+              {node.hop_count === 0 && node.rssi !== undefined && node.rssi !== null && (
+                <div className="text-sm text-gray-300 flex items-center gap-2">
+                  <Signal className="h-4 w-4" />
+                  RSSI: {node.rssi} dBm
+                </div>
+              )}
+              {node.hop_count === 0 && node.snr !== undefined && node.snr !== null && (
+                <div className="text-sm text-gray-300 flex items-center gap-2">
+                  <Gauge className="h-4 w-4" />
+                  SNR: {node.snr.toFixed(1)} dB
+                </div>
               )}
             </div>
             <div className="bg-gray-800 rounded p-3 space-y-2">
-              <div className="text-xs uppercase tracking-wide text-gray-400">Radio</div>
-              {node.hop_count === 0 && (
-                <div className="text-sm text-gray-300 flex items-center gap-2"><Signal className="h-4 w-4" /> RSSI: {node.rssi !== undefined && node.rssi !== null ? `${node.rssi} dBm` : '—'}</div>
-              )}
-              <div className="text-sm text-gray-300 flex items-center gap-2"><Radio className="h-4 w-4" /> Hops: {hopLabel()}</div>
-              <div className="text-sm text-gray-300 flex items-center gap-2"><CalendarClock className="h-4 w-4" /> Last Heard: {formatLastHeard(node.last_heard)}</div>
+              <div className="text-xs uppercase tracking-wide text-gray-400">Network</div>
+              <div className="text-sm text-gray-300 flex items-center gap-2">
+                <Radio className="h-4 w-4" />
+                Hops: {hopLabel()}
+              </div>
+              <div className="text-sm text-gray-300">
+                Status: {node.is_online ? (
+                  <span className="text-green-400">Online</span>
+                ) : (
+                  <span className="text-gray-500">Offline</span>
+                )}
+              </div>
+              <div className="text-sm text-gray-300 flex items-center gap-2">
+                <CalendarClock className="h-4 w-4" />
+                <span className="text-xs">{formatLastHeard(node.last_heard)}</span>
+              </div>
             </div>
           </div>
 

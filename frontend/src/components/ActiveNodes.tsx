@@ -14,7 +14,7 @@ const ActiveNodes = ({
   nodes,
   selectedNodeId, 
   onNodeSelect,
-  localNodeId = '1109198442'  // Default to known local node
+  localNodeId
 }: ActiveNodesProps) => {
   // reserved for future iconography if needed
   const [searchTerm, setSearchTerm] = useState('');
