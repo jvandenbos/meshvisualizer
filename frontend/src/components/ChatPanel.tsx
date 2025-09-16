@@ -17,25 +17,44 @@ type Pending = { id: string; text: string; dest: string; timestamp: number };
 export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId, testChannelIndex }: ChatPanelProps) => {
   const [text, setText] = useState('');
   const [dest, setDest] = useState<string>('broadcast');
+  const [filterNode, setFilterNode] = useState<string>('broadcast'); // For filtering displayed messages
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [pending, setPending] = useState<Pending[]>([]);
   const [usePrivateChannel, setUsePrivateChannel] = useState<boolean>(false);
 
   const nodeOptions = useMemo(() => {
-    const opts = [{ id: 'broadcast', name: 'Broadcast' }];
+    const opts = [{ id: 'broadcast', name: 'All Messages' }];
     for (const n of nodes) {
       opts.push({ id: n.id, name: n.long_name || n.short_name || n.id });
     }
     return opts;
   }, [nodes]);
 
+  // Filter messages based on selected filter node
+  const filteredMessages = useMemo(() => {
+    if (filterNode === 'broadcast') {
+      // Show all messages when "All Messages" is selected
+      return messages;
+    } else {
+      // Show only messages to/from the selected node (excluding broadcasts)
+      // Handle both decimal and hex ID formats
+      const filterHex = `!${parseInt(filterNode).toString(16)}`;
+      return messages.filter(m => {
+        const isBroadcast = m.to_id === 'broadcast' || m.to_id === '^all' || m.to_id === '4294967295';
+        if (isBroadcast) return false; // Exclude broadcasts when filtering by node
+        return m.from_id === filterNode || m.to_id === filterNode ||
+               m.from_id === filterHex || m.to_id === filterHex;
+      });
+    }
+  }, [messages, filterNode]);
+
   useEffect(() => {
     // Auto-scroll to bottom when a new text message is added
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages.length]);
+  }, [filteredMessages.length]);
 
   // Reconcile pending messages when we observe our own echo from backend
   useEffect(() => {
@@ -99,19 +118,34 @@ export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId, testChan
             <UserCircle2 className="h-5 w-5 text-purple-400" />
             <h3 className="text-white font-semibold">Messenger</h3>
           </div>
-          <div className="flex items-center gap-2 text-xs text-gray-400">
-            <span>Destination:</span>
-            <select
-              value={dest}
-              onChange={(e) => setDest(e.target.value)}
-              className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs focus:outline-none"
-            >
-              {nodeOptions.map(o => (
-                <option key={o.id} value={o.id}>{o.name}</option>
-              ))}
-            </select>
+          <div className="flex items-center gap-3 text-xs text-gray-400">
+            <div className="flex items-center gap-1">
+              <span>Filter:</span>
+              <select
+                value={filterNode}
+                onChange={(e) => setFilterNode(e.target.value)}
+                className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs focus:outline-none"
+              >
+                {nodeOptions.map(o => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-1">
+              <span>Send to:</span>
+              <select
+                value={dest}
+                onChange={(e) => setDest(e.target.value)}
+                className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs focus:outline-none"
+              >
+                <option value="broadcast">Broadcast</option>
+                {nodes.map(n => (
+                  <option key={n.id} value={n.id}>{n.long_name || n.short_name || n.id}</option>
+                ))}
+              </select>
+            </div>
             {typeof testChannelIndex === 'number' && (
-              <label className="ml-2 inline-flex items-center gap-1 cursor-pointer select-none">
+              <label className="inline-flex items-center gap-1 cursor-pointer select-none">
                 <input type="checkbox" className="accent-purple-500" checked={usePrivateChannel} onChange={(e) => setUsePrivateChannel(e.target.checked)} />
                 <span>Private ch {testChannelIndex}</span>
               </label>
@@ -122,7 +156,7 @@ export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId, testChan
 
       {/* Messages Stream */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-1">
-        {messages.length === 0 && (
+        {filteredMessages.length === 0 && (
           <div className="text-sm text-gray-500">No messages yet.</div>
         )}
         {/* Pending (sending) messages from me */}
@@ -135,11 +169,49 @@ export const ChatPanel = ({ nodes, messages, localNodeId, targetNodeId, testChan
           </div>
         ))}
         {/* Delivered messages */}
-        {messages.map((m, i) => {
-          const isMine = localNodeId && m.from_id === localNodeId;
+        {filteredMessages.map((m, i) => {
+          // Convert IDs for comparison (handle decimal vs hex format)
+          const localIdHex = localNodeId ? `!${parseInt(localNodeId).toString(16)}` : null;
+
+          const isMine = localNodeId && (m.from_id === localNodeId || m.from_id === localIdHex);
+          const isToMe = localNodeId && (m.to_id === localNodeId || m.to_id === localIdHex);
+          const isBroadcast = m.to_id === 'broadcast' || m.to_id === '^all' || m.to_id === '4294967295';
+          const isDM = !isBroadcast;
+
+          // Determine message type for visual indicator
+          let messageType = '';
+          let bgClass = '';
+          if (isDM && isToMe && !isMine) {
+            messageType = 'TO ME';
+            bgClass = 'bg-purple-900/30 border-l-2 border-purple-500 pl-2';
+          } else if (isDM && !isToMe && !isMine) {
+            messageType = 'PRIVATE';
+            bgClass = 'bg-gray-800/50 border-l-2 border-gray-600 pl-2 opacity-75';
+          } else if (isBroadcast) {
+            messageType = 'BROADCAST';
+            bgClass = '';
+          }
+
           return (
-            <div key={i} className="text-sm text-gray-200">
+            <div key={i} className={`text-sm text-gray-200 ${bgClass} py-0.5`}>
               <span className="font-medium text-cyan-300">{isMine ? 'You' : resolveName(m.from_id, nodes, undefined, m.from_name || m.from_id)}</span>
+              {isDM && (
+                <>
+                  <span className="text-gray-400"> → </span>
+                  <span className="font-medium text-purple-300">
+                    {isToMe ? 'You' : resolveName(m.to_id, nodes, undefined, m.to_name || m.to_id)}
+                  </span>
+                </>
+              )}
+              {messageType && (
+                <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                  messageType === 'TO ME' ? 'bg-purple-600 text-white' :
+                  messageType === 'PRIVATE' ? 'bg-gray-600 text-gray-300' :
+                  'bg-gray-700 text-gray-400'
+                }`}>
+                  {messageType}
+                </span>
+              )}
               <span className="text-gray-400">: </span>
               <span className="whitespace-pre-wrap break-words">{m.message}</span>
               {isMine && (

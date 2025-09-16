@@ -463,6 +463,11 @@ function App() {
           aliases={aliases}
           testChannelIndex={testChannelIndex}
           autoRepliesEnabled={autoRepliesEnabled}
+          localNodeId={localNodeId}
+          onReplyTo={(nodeId) => {
+            setChatTargetId(nodeId);
+            setIsMessagesOpen(false);
+          }}
         />
       )}
     </div>

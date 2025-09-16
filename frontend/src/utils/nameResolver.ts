@@ -16,9 +16,24 @@ export function resolveName(
   if (!idOrName) return fallback || 'unknown';
   const id = idOrName;
 
-  // Check live nodes
+  // Check live nodes - handle both decimal and hex ID formats
   if (nodes && nodes.length) {
-    const node = nodes.find(n => n.id === id);
+    // Try direct match first
+    let node = nodes.find(n => n.id === id);
+
+    // If not found and ID starts with !, try converting to decimal
+    if (!node && id.startsWith('!')) {
+      const hexPart = id.substring(1);
+      const decimalId = parseInt(hexPart, 16).toString();
+      node = nodes.find(n => n.id === decimalId);
+    }
+
+    // If not found and ID is decimal, try converting to hex
+    if (!node && /^\d+$/.test(id)) {
+      const hexId = `!${parseInt(id).toString(16)}`;
+      node = nodes.find(n => n.id === hexId);
+    }
+
     if (node) {
       if (node.long_name && node.long_name.trim().length > 0) return node.long_name;
       // if no long_name, try alias below, then short_name
@@ -27,6 +42,8 @@ export function resolveName(
         if (a) return a;
       }
       if (node.short_name && node.short_name.trim().length > 0) return node.short_name;
+      // Return a shortened version of the ID for better display
+      if (id.startsWith('!')) return id.substring(0, 9); // Show first 8 hex chars
       return id;
     }
   }
@@ -37,6 +54,8 @@ export function resolveName(
     if (a) return a;
   }
 
+  // Return a shortened version of hex IDs for better display
+  if (id.startsWith('!')) return fallback || id.substring(0, 9);
   return fallback || id;
 }
 

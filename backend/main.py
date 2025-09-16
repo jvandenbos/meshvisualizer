@@ -150,39 +150,78 @@ async def process_meshtastic_data(data: Dict[str, Any]):
 async def handle_node_info(data: Dict):
     """Handle node information update"""
     node_data = data["node"]
-    logger.info(f"   Processing node_info: {node_data['id'][:8]} = {node_data.get('short_name', 'Unknown')}")
-    
-    # Calculate signal quality based on RSSI
-    rssi = data.get("rssi")
-    signal_quality = None
-    if rssi:
-        if rssi > -75:
-            signal_quality = "excellent"
-        elif rssi > -85:
-            signal_quality = "good"
-        elif rssi > -95:
-            signal_quality = "weak"
-        else:
-            signal_quality = "poor"
-    
-    node = NodeInfo(
-        id=node_data["id"],
-        short_name=node_data.get("short_name", f"Node-{node_data['id']}"),
-        long_name=node_data.get("long_name"),
-        hardware_model=node_data.get("hardware_model"),
-        role=node_data.get("role", "CLIENT"),
-        battery_level=node_data.get("battery_level"),
-        voltage=node_data.get("voltage"),
-        rssi=rssi,
-        snr=data.get("snr"),
-        hop_count=data.get("hop_count", 0),
-        signal_quality=signal_quality,
-        last_heard=data["timestamp"]
-    )
-    
-    # Update live state
-    state.live_nodes[node.id] = node
-    logger.info(f"   ✅ Added to live_nodes: {node.id[:8]}, total nodes: {len(state.live_nodes)}")
+    node_id = node_data["id"]
+    logger.info(f"   Processing node_info: {node_id[:8]} = {node_data.get('short_name', 'Unknown')}")
+
+    # Check if node already exists to preserve existing data
+    if node_id in state.live_nodes:
+        # Update existing node, preserving data we already have
+        node = state.live_nodes[node_id]
+        logger.info(f"   📝 Updating existing node: {node_id[:8]}")
+
+        # Update node info fields
+        if node_data.get("short_name"):
+            node.short_name = node_data.get("short_name")
+        if node_data.get("long_name"):
+            node.long_name = node_data.get("long_name")
+        if node_data.get("hardware_model"):
+            node.hardware_model = node_data.get("hardware_model")
+        if node_data.get("role"):
+            node.role = node_data.get("role")
+
+        # Update signal/hop info if provided
+        if data.get("rssi") is not None:
+            node.rssi = data.get("rssi")
+            # Recalculate signal quality
+            if node.rssi > -75:
+                node.signal_quality = "excellent"
+            elif node.rssi > -85:
+                node.signal_quality = "good"
+            elif node.rssi > -95:
+                node.signal_quality = "weak"
+            else:
+                node.signal_quality = "poor"
+        if data.get("snr") is not None:
+            node.snr = data.get("snr")
+        if data.get("hop_count") is not None:
+            node.hop_count = data.get("hop_count")
+
+        node.last_heard = data["timestamp"]
+    else:
+        # Create new node
+        logger.info(f"   ➕ Creating new node: {node_id[:8]}")
+
+        # Calculate signal quality based on RSSI
+        rssi = data.get("rssi")
+        signal_quality = None
+        if rssi:
+            if rssi > -75:
+                signal_quality = "excellent"
+            elif rssi > -85:
+                signal_quality = "good"
+            elif rssi > -95:
+                signal_quality = "weak"
+            else:
+                signal_quality = "poor"
+
+        node = NodeInfo(
+            id=node_id,
+            short_name=node_data.get("short_name", f"Node-{node_id}"),
+            long_name=node_data.get("long_name"),
+            hardware_model=node_data.get("hardware_model"),
+            role=node_data.get("role", "CLIENT"),
+            battery_level=node_data.get("battery_level"),
+            voltage=node_data.get("voltage"),
+            rssi=rssi,
+            snr=data.get("snr"),
+            hop_count=data.get("hop_count", 0),
+            signal_quality=signal_quality,
+            last_heard=data["timestamp"]
+        )
+
+        state.live_nodes[node_id] = node
+
+    logger.info(f"   ✅ Node in live_nodes: {node_id[:8]} = {node.short_name or 'Unknown'}, total nodes: {len(state.live_nodes)}")
     
     # Save to database
     await state.db.upsert_node(node)
@@ -276,11 +315,25 @@ async def maybe_handle_server_command(message: TextMessage):
     local_id = state.meshtastic.local_node_id
     if not local_id:
         return
+
+    # Debug logging to help identify the issue
+    logger.info(f"Command handler: Checking message from {message.from_id} to {message.to_id} (local_id={local_id})")
+    logger.info(f"Command handler: Message text: '{message.message}'")
+
     # Ignore broadcasts and messages not directed to us
     to_id = str(message.to_id)
-    if to_id in ("4294967295", "^all"):
+    if to_id in ("4294967295", "^all", "broadcast"):
+        logger.info(f"Command handler: Ignoring broadcast message to {to_id}")
         return
-    if to_id != str(local_id):
+
+    # Convert local_id to hex format for comparison
+    # Handle both decimal (1109198442) and hex (!421d066a) formats
+    local_id_str = str(local_id)
+    local_id_hex = f"!{int(local_id):x}" if local_id_str.isdigit() else local_id_str
+
+    # Check if message is for us (handle both decimal and hex formats)
+    if to_id != local_id_str and to_id != local_id_hex:
+        logger.info(f"Command handler: Message not for us (to_id={to_id}, local_id={local_id_str}, local_hex={local_id_hex})")
         return
     # Ignore our own messages just in case
     if str(message.from_id) == str(local_id):
@@ -309,6 +362,8 @@ async def maybe_handle_server_command(message: TextMessage):
         cmd = "NEIGHBORS"
     else:
         return  # Not a recognized command
+
+    logger.info(f"Command handler: Recognized command '{cmd}' from {message.from_id}")
 
     # Rate limit per sender+command
     import time

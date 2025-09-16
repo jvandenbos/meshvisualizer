@@ -1,6 +1,6 @@
 # Release Notes
 
-Date: 2025-09-15 (Updated)
+Date: 2025-09-16 (Updated)
 
 This release focuses on safety (no unsolicited transmissions), reliability (fix message duplication and ordering), and UX improvements (private channel, messages modal, and groundwork for network visualization).
 
@@ -48,6 +48,42 @@ Known limitations
 ### Packet Details Modal Improvements
 - **Fixed z-index layering**: Packet details now properly appear above Messages modal
 - **Enhanced visualization**:
+
+## Latest Updates (2025-09-16)
+
+### DM Bot Command System Fixed
+- **Fixed node ID comparison**: Commands (HELP, INFO, etc.) now work properly - fixed decimal vs hex ID format mismatch
+- **All 7 commands functional**: PING, INFO, HELP, WEATHER, UPTIME, NODES, NEIGHBORS with rate limiting
+- **Debug logging added**: Command handler now logs incoming messages for easier troubleshooting
+
+### Enhanced Messenger (Chat Panel)
+- **Dual dropdown system**:
+  - **Filter dropdown**: Controls which messages are displayed (All Messages or specific node)
+  - **Send to dropdown**: Controls destination for new messages
+- **Visual message type indicators**:
+  - **TO ME badge** (purple): Direct messages sent to your node, highlighted with purple background
+  - **PRIVATE badge** (gray): Private messages between other nodes, shown with reduced opacity
+  - **BROADCAST badge**: Messages sent to everyone
+- **Improved message display**:
+  - Shows "You" instead of your node ID
+  - Direct messages show "Sender → Recipient" format
+  - Proper filtering excludes broadcasts when viewing specific node conversations
+
+### Messages Panel DM Highlighting
+- **DM detection and highlighting**: Messages directed to your node are highlighted with purple border and "DM" badge
+- **Enhanced reply button**: Purple styling for DMs with "Reply to DM" tooltip
+- **Broadcast identification**: Properly identifies and labels broadcast messages
+
+### Node Name Resolution
+- **Smart ID resolution**: Handles both decimal (1109198442) and hex (!421d066a) ID formats
+- **Automatic name display**: Shows node names (long_name/short_name) instead of cryptic IDs throughout UI
+- **Fallback formatting**: Shortens hex IDs (!421d066a → !421d066) when names unavailable
+
+### Backend Improvements
+- **Incremental node updates**: NodeInfo packets now update existing nodes instead of replacing them
+  - Preserves position, telemetry, battery data when updating names
+  - Nodes progressively gain complete information over time
+- **Proper ID format handling**: Backend correctly compares decimal and hex node IDs for command processing
   - Color-coded packet types with icons
   - Visual RSSI signal strength bar
   - Organized sections (Routing, Signal Quality, Metadata, Decoded Content)

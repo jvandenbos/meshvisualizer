@@ -15,9 +15,10 @@ interface MessagesPanelProps {
   onReplyTo?: (nodeId: string) => void;
   testChannelIndex?: number | null;
   autoRepliesEnabled?: boolean;
+  localNodeId?: string | null;
 }
 
-export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onOpenMap, nodes, aliases, onReplyTo, testChannelIndex, autoRepliesEnabled }) => {
+export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onOpenMap, nodes, aliases, onReplyTo, testChannelIndex, autoRepliesEnabled, localNodeId }) => {
   const [packets, setPackets] = useState<DecodedPacket[]>([]);
   const [filterTab, setFilterTab] = useState<TabKey>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -239,8 +240,13 @@ export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onO
             const isExpanded = expanded.has(p.id);
             const colorClass = MeshtasticDecoder.getPacketColor(p.portnum);
             const hr = MeshtasticDecoder.toHumanReadable(p);
+
+            // Check if this is a DM to the local node
+            const isDirectMessage = localNodeId && p.to === localNodeId && p.to !== 'broadcast' && p.to !== '^all' && p.to !== '4294967295';
+            const isBroadcast = p.to === 'broadcast' || p.to === '^all' || p.to === '4294967295';
+
             return (
-              <div key={p.id} className={`border-b border-gray-800 hover:bg-gray-800 transition-colors`}>
+              <div key={p.id} className={`border-b border-gray-800 hover:bg-gray-800 transition-colors ${isDirectMessage ? 'bg-purple-900/20 border-l-4 border-purple-500' : ''}`}>
                 <div className="p-3 cursor-pointer" onClick={() => onPacketClick && onPacketClick(p)}>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -252,13 +258,19 @@ export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onO
                           {p.timestamp.toLocaleTimeString('en-US', { hour12: false, fractionalSecondDigits: 3 })}
                         </span>
                         <span className={`text-xs font-semibold ${colorClass}`}>{p.portnum}</span>
+                        {isDirectMessage && (
+                          <span className="text-xs px-1.5 py-0.5 bg-purple-600 text-white rounded font-semibold">DM</span>
+                        )}
+                        {isBroadcast && (
+                          <span className="text-xs px-1.5 py-0.5 bg-gray-600 text-gray-200 rounded">Broadcast</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <span className="text-gray-400">From:</span>
                         <span className="text-cyan-400">{resolveName(p.from, nodes, aliases, p.from)}</span>
                         <span className="text-gray-400">→</span>
                         <span className="text-gray-400">To:</span>
-                        <span className="text-cyan-400">{resolveName(p.to, nodes, aliases, p.to)}</span>
+                        <span className={isDirectMessage ? "text-purple-400 font-semibold" : "text-cyan-400"}>{resolveName(p.to, nodes, aliases, p.to)}</span>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                         {p.rssi !== undefined && <span>RSSI: {p.rssi} dBm</span>}
@@ -271,8 +283,12 @@ export const MessagesPanel: React.FC<MessagesPanelProps> = ({ onPacketClick, onO
                       {p.portnum === 'TEXT_MESSAGE' && onReplyTo && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onReplyTo(p.from); }}
-                          className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-200 flex items-center gap-1"
-                          title="Reply to sender"
+                          className={`px-2 py-1 text-xs rounded flex items-center gap-1 ${
+                            isDirectMessage
+                              ? 'bg-purple-600 hover:bg-purple-500 text-white font-semibold'
+                              : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
+                          }`}
+                          title={isDirectMessage ? "Reply to DM" : "Reply to sender"}
                         >
                           <Reply className="h-3 w-3" /> Reply
                         </button>

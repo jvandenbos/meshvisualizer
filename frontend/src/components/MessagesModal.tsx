@@ -12,9 +12,11 @@ interface MessagesModalProps {
   aliases?: AliasMap;
   testChannelIndex?: number | null;
   autoRepliesEnabled?: boolean;
+  localNodeId?: string | null;
+  onReplyTo?: (nodeId: string) => void;
 }
 
-export const MessagesModal: FC<MessagesModalProps> = ({ onClose, onPacketClick, nodes, aliases, testChannelIndex, autoRepliesEnabled }) => {
+export const MessagesModal: FC<MessagesModalProps> = ({ onClose, onPacketClick, nodes, aliases, testChannelIndex, autoRepliesEnabled, localNodeId, onReplyTo }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
@@ -30,6 +32,8 @@ export const MessagesModal: FC<MessagesModalProps> = ({ onClose, onPacketClick, 
             aliases={aliases}
             testChannelIndex={testChannelIndex}
             autoRepliesEnabled={autoRepliesEnabled}
+            localNodeId={localNodeId}
+            onReplyTo={onReplyTo}
           />
         </div>
       </div>
