@@ -221,10 +221,16 @@ class MeshtasticConnector:
                 to_id = self.normalize_id(str(to_id)) if to_id else "unknown"
 
                 # Check if this is a DM directed at us (not broadcast)
-                if to_id == self.local_node_hex_id and from_id != "broadcast":
-                    # This is a DM to us that we can't decrypt - attempt key refresh
+                is_broadcast = to_id in ["broadcast", "^all", "4294967295"]
+                is_dm_to_us = to_id == self.local_node_hex_id and not is_broadcast
+
+                if is_dm_to_us:
+                    # This is a DM to us that we can't decrypt - likely PKC issue
                     from_name = self.node_db.get(from_id, {}).get('short_name', from_id)
                     logger.warning(f"📨 Failed to decrypt DM from {from_id} ({from_name})")
+
+                    # Record the PKC failure for DMs only
+                    self.pkc_history.record_decryption_failure(from_id)
 
                     # Attempt automatic PKC key refresh
                     try:
@@ -240,14 +246,15 @@ class MeshtasticConnector:
                     except Exception as e:
                         logger.error(f"Failed to initiate key refresh: {e}")
 
-                # Record the decryption failure in PKC history
-                self.pkc_history.record_decryption_failure(from_id)
-
-                # Get PKC diagnostics for the error message
-                pkc_diagnostics = self.pkc_history.get_diagnostics(from_id)
-
-                # Build enhanced error message with PKC info
-                error_message = f"[Encrypted DM - PKC failed] {pkc_diagnostics}"
+                    # Get PKC diagnostics for the error message
+                    pkc_diagnostics = self.pkc_history.get_diagnostics(from_id)
+                    error_message = f"[Encrypted DM - PKC failed] {pkc_diagnostics}"
+                elif is_broadcast:
+                    # This is an encrypted broadcast - likely channel key issue
+                    error_message = f"[Encrypted broadcast - channel key missing]"
+                else:
+                    # Some other encrypted packet type
+                    error_message = f"[Encrypted packet - unknown type]"
 
                 # Send as encrypted message notification (but don't show in UI message feed)
                 encrypted_msg_data = {
@@ -257,7 +264,6 @@ class MeshtasticConnector:
                     "to_id": to_id,
                     "to_name": self.node_db.get(to_id, {}).get('short_name', to_id),
                     "message": error_message,
-                    "pkc_info": self.pkc_history.get_key_info(from_id),  # Add detailed PKC info
                     "timestamp": datetime.now(),
                     "encrypted": True,
                     "rssi": packet.get('rxRssi'),
@@ -265,6 +271,10 @@ class MeshtasticConnector:
                     "hop_count": (packet.get('hopStart', 0) - packet.get('hopLimit', 0)) if packet.get('hopStart', 0) > 0 else None,
                     "channel": packet.get('channel', 0)  # Add channel info
                 }
+
+                # Only add PKC info for actual DMs
+                if is_dm_to_us:
+                    encrypted_msg_data["pkc_info"] = self.pkc_history.get_key_info(from_id)
 
                 if self.on_data_callback:
                     try:

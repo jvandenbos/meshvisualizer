@@ -6,8 +6,8 @@
     "first_seen": "2025-09-17T12:46:09.515851",
     "history": [],
     "update_count": 0,
-    "decryption_failures": 21,
-    "last_failure": "2025-09-17T15:12:11.835996"
+    "decryption_failures": 22,
+    "last_failure": "2025-09-17T15:18:18.221565"
   },
   "!6dc5aab3": {
     "node_name": null,
@@ -16,8 +16,8 @@
     "first_seen": "2025-09-17T14:01:44.585276",
     "history": [],
     "update_count": 0,
-    "decryption_failures": 24,
-    "last_failure": "2025-09-17T15:12:56.288880"
+    "decryption_failures": 26,
+    "last_failure": "2025-09-17T15:17:51.959778"
   },
   "!054e3b0a": {
     "node_name": null,
@@ -26,8 +26,8 @@
     "first_seen": "2025-09-17T14:01:44.586362",
     "history": [],
     "update_count": 0,
-    "decryption_failures": 4,
-    "last_failure": "2025-09-17T14:32:25.231441"
+    "decryption_failures": 5,
+    "last_failure": "2025-09-17T15:17:18.789769"
   },
   "!5248e8e1": {
     "node_name": null,
@@ -66,8 +66,8 @@
     "first_seen": "2025-09-17T14:01:44.646170",
     "history": [],
     "update_count": 0,
-    "decryption_failures": 4,
-    "last_failure": "2025-09-17T15:09:53.291443"
+    "decryption_failures": 5,
+    "last_failure": "2025-09-17T15:19:18.578938"
   },
   "!8abdd38a": {
     "node_name": null,
@@ -198,5 +198,15 @@
     "update_count": 0,
     "decryption_failures": 1,
     "last_failure": "2025-09-17T15:11:53.805506"
+  },
+  "!f79feda8": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T15:16:25.519297",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 1,
+    "last_failure": "2025-09-17T15:16:25.519304"
   }
 }
