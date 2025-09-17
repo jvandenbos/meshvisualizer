@@ -233,6 +233,54 @@ class MeshtasticConnector:
             logger.info(f"   Type: {ptype_str}, RSSI: {rssi_log}, SNR: {snr_log}, Hops: {hop_count_log}")
             
             if portnum == 1 or portname == 'TEXT_MESSAGE_APP':  # TEXT_MESSAGE
+                # Comprehensive logging for debugging DM issues
+                logger.info(f"📨 Processing TEXT_MESSAGE packet")
+                logger.info(f"   Full packet keys: {list(packet.keys())}")
+                logger.info(f"   Decoded section keys: {list(packet_dict.keys()) if packet_dict else 'No decoded'}")
+
+                # Try multiple methods to extract text
+                text_content = None
+
+                # Method 1: Direct in packet
+                if 'text' in packet:
+                    text_content = packet['text']
+                    logger.info(f"   ✅ Found text in packet root: '{text_content}'")
+                    packet_dict['text'] = text_content
+
+                # Method 2: In decoded section
+                if not text_content and packet_dict and 'text' in packet_dict:
+                    text_content = packet_dict['text']
+                    logger.info(f"   ✅ Found text in decoded: '{text_content}'")
+
+                # Method 3: Check payload field
+                if not text_content and packet_dict and 'payload' in packet_dict:
+                    payload = packet_dict['payload']
+                    logger.info(f"   Payload type: {type(payload)}, repr: {repr(payload)[:100]}")
+                    try:
+                        if isinstance(payload, bytes):
+                            text_content = payload.decode('utf-8', errors='replace')
+                            logger.info(f"   ✅ Decoded text from payload bytes: '{text_content}'")
+                            packet_dict['text'] = text_content
+                        elif isinstance(payload, str):
+                            text_content = payload
+                            logger.info(f"   ✅ Payload was string: '{text_content}'")
+                            packet_dict['text'] = text_content
+                    except Exception as e:
+                        logger.error(f"   ❌ Failed to decode payload: {e}")
+
+                # Check for encryption issues
+                if 'encrypted' in packet:
+                    logger.warning(f"   ⚠️ Packet has 'encrypted' field - may indicate decryption failure")
+                    if not packet_dict or 'decoded' not in packet:
+                        logger.error(f"   ❌ Encrypted packet was NOT decoded - check channel keys!")
+
+                # Final logging
+                if text_content:
+                    logger.info(f"   💬 Text message: '{text_content[:50]}{'...' if len(text_content) > 50 else ''}' from {from_id[:8]}")
+                else:
+                    logger.warning(f"   ⚠️ No text content found!")
+                    logger.info(f"   Full packet dump: {packet}")
+                    logger.info(f"   Decoded dump: {packet_dict}")
                 data = self.process_text_message(packet_dict, from_id, to_id)
             elif portnum == 3 or portname == 'POSITION_APP':  # POSITION
                 logger.info(f"   📍 Position update from {from_id[:8]}")
@@ -360,6 +408,14 @@ class MeshtasticConnector:
     def process_node_info(self, packet: Dict, from_id: str) -> Dict:
         """Process node info packet"""
         user = packet.get('user', {})
+
+        # Check for public key in the packet
+        if 'publicKey' in user or 'public_key' in user:
+            pub_key = user.get('publicKey') or user.get('public_key')
+            logger.info(f"      🔑 Node has public key: {pub_key[:16]}..." if pub_key else "No key")
+
+        # Log full user dict to see what fields are available
+        logger.debug(f"      Full user data: {user}")
 
         # Convert to hex ID for consistency
         hex_from_id = f"!{int(from_id):08x}" if from_id.isdigit() else from_id  # Use 8-digit padding
