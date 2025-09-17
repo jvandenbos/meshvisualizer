@@ -7,6 +7,8 @@ import asyncio
 import time
 import logging
 from backend.models import NodeInfo, MeshPacket, TextMessage, NetworkLink
+from backend.pkc_key_manager import PKCKeyManager
+from backend.pkc_key_history import PKCKeyHistory
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,12 @@ class MeshtasticConnector:
         self.local_node_id: Optional[str] = None
         self.local_node_hex_id: Optional[str] = None  # Hex format for local node
         self._subscribed = False
+        # Initialize PKC key manager with conservative settings
+        self.pkc_manager = PKCKeyManager(max_retries=2, backoff_minutes=30)
+        # Initialize PKC key history tracker
+        self.pkc_history = PKCKeyHistory()
+        # Channel names mapping
+        self.channel_names = {0: "Primary"}  # Default primary channel
         
     def connect(self, device_path: Optional[str] = None) -> bool:
         """Connect to RAK 4631 over USB-C"""
@@ -59,7 +67,46 @@ class MeshtasticConnector:
     def on_connection(self, interface, topic=pub.AUTO_TOPIC):
         """Called when connection is established"""
         logger.info("Meshtastic connection established")
-        
+
+        # Update channel names mapping
+        try:
+            if hasattr(interface, 'channels'):
+                channels = interface.channels
+                if isinstance(channels, dict):
+                    for idx, ch in channels.items():
+                        if hasattr(ch, 'settings') and hasattr(ch.settings, 'name'):
+                            name = ch.settings.name
+                            if name:  # Only update if name is not empty
+                                self.channel_names[int(idx)] = name
+                                logger.info(f"Channel {idx}: {name}")
+                            elif int(idx) == 0:
+                                self.channel_names[0] = "Primary"
+                            else:
+                                self.channel_names[int(idx)] = f"Channel {idx}"
+        except Exception as e:
+            logger.warning(f"Could not get channel names: {e}")
+
+        # Get device metadata including firmware version
+        self.device_metadata = {}
+        try:
+            # Get firmware version and device info
+            if hasattr(interface, 'metadata'):
+                self.device_metadata['firmware_version'] = getattr(interface.metadata, 'firmware_version', 'Unknown')
+                self.device_metadata['device_state_version'] = getattr(interface.metadata, 'device_state_version', 0)
+
+            # Try to get more device info
+            if hasattr(interface, 'myInfo'):
+                if hasattr(interface.myInfo, 'firmware_version'):
+                    self.device_metadata['firmware_version'] = interface.myInfo.firmware_version
+                if hasattr(interface.myInfo, 'region'):
+                    self.device_metadata['region'] = interface.myInfo.region
+                if hasattr(interface.myInfo, 'hw_model'):
+                    self.device_metadata['hw_model'] = interface.myInfo.hw_model
+
+            logger.info(f"Device metadata: {self.device_metadata}")
+        except Exception as e:
+            logger.warning(f"Could not get device metadata: {e}")
+
         # Get local node info
         if hasattr(interface, 'myInfo') and interface.myInfo:
             self.local_node_id = str(interface.myInfo.my_node_num)
@@ -121,7 +168,9 @@ class MeshtasticConnector:
                 "hardware_model": local_hw_model,
                 "role": "CLIENT",
                 "hop_count": 0,  # Local node is always 0 hops
-                "is_local": True
+                "is_local": True,
+                "firmware_version": self.device_metadata.get('firmware_version', 'Unknown'),
+                "region": self.device_metadata.get('region', 'Unknown')
             }
             
             # Send local node info to backend if we have a name
@@ -161,12 +210,72 @@ class MeshtasticConnector:
         try:
             # Check if packet is encrypted (not decoded by Meshtastic library)
             if 'encrypted' in packet and 'decoded' not in packet:
-                logger.warning(f"⚠️ Received encrypted packet that couldn't be decoded - check channel encryption settings")
+                logger.warning(f"⚠️ Received encrypted packet that couldn't be decoded - likely PKC DM with key issues")
                 # Still log it for debugging
                 from_id = packet.get('fromId') or packet.get('from')
                 to_id = packet.get('toId') or packet.get('to')
                 logger.info(f"   Encrypted packet from {from_id} to {to_id}")
-                # Could still process as generic packet for visibility
+
+                # Process as encrypted DM for visibility
+                from_id = self.normalize_id(str(from_id)) if from_id else "unknown"
+                to_id = self.normalize_id(str(to_id)) if to_id else "unknown"
+
+                # Check if this is a DM directed at us (not broadcast)
+                if to_id == self.local_node_hex_id and from_id != "broadcast":
+                    # This is a DM to us that we can't decrypt - attempt key refresh
+                    from_name = self.node_db.get(from_id, {}).get('short_name', from_id)
+                    logger.warning(f"📨 Failed to decrypt DM from {from_id} ({from_name})")
+
+                    # Attempt automatic PKC key refresh
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.create_task(
+                                self.pkc_manager.refresh_node_key(from_id, from_name)
+                            )
+                        else:
+                            asyncio.run(
+                                self.pkc_manager.refresh_node_key(from_id, from_name)
+                            )
+                    except Exception as e:
+                        logger.error(f"Failed to initiate key refresh: {e}")
+
+                # Record the decryption failure in PKC history
+                self.pkc_history.record_decryption_failure(from_id)
+
+                # Get PKC diagnostics for the error message
+                pkc_diagnostics = self.pkc_history.get_diagnostics(from_id)
+
+                # Build enhanced error message with PKC info
+                error_message = f"[Encrypted DM - PKC failed] {pkc_diagnostics}"
+
+                # Send as encrypted message notification (but don't show in UI message feed)
+                encrypted_msg_data = {
+                    "type": "encrypted_packet",  # Changed from text_message to filter in UI
+                    "from_id": from_id,
+                    "from_name": self.node_db.get(from_id, {}).get('short_name', from_id),
+                    "to_id": to_id,
+                    "to_name": self.node_db.get(to_id, {}).get('short_name', to_id),
+                    "message": error_message,
+                    "pkc_info": self.pkc_history.get_key_info(from_id),  # Add detailed PKC info
+                    "timestamp": datetime.now(),
+                    "encrypted": True,
+                    "rssi": packet.get('rxRssi'),
+                    "snr": packet.get('rxSnr'),
+                    "hop_count": (packet.get('hopStart', 0) - packet.get('hopLimit', 0)) if packet.get('hopStart', 0) > 0 else None,
+                    "channel": packet.get('channel', 0)  # Add channel info
+                }
+
+                if self.on_data_callback:
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.create_task(self.on_data_callback(encrypted_msg_data))
+                        else:
+                            asyncio.run(self.on_data_callback(encrypted_msg_data))
+                    except RuntimeError:
+                        asyncio.run(self.on_data_callback(encrypted_msg_data))
+                return  # Don't process further
 
             # Extract packet data - handle different packet structures
             packet_dict = packet.get('decoded', packet)
@@ -251,6 +360,12 @@ class MeshtasticConnector:
                 if not text_content and packet_dict and 'text' in packet_dict:
                     text_content = packet_dict['text']
                     logger.info(f"   ✅ Found text in decoded: '{text_content}'")
+
+                # If we successfully decoded a DM, reset any PKC retry counts for this sender
+                if text_content and from_id and to_id == self.local_node_hex_id:
+                    # Successfully decrypted a DM from this node - reset their retry count
+                    self.pkc_manager.reset_node(from_id)
+                    logger.info(f"✓ Successfully decrypted DM from {from_id} - reset PKC retry count")
 
                 # Method 3: Check payload field
                 if not text_content and packet_dict and 'payload' in packet_dict:
@@ -409,10 +524,33 @@ class MeshtasticConnector:
         """Process node info packet"""
         user = packet.get('user', {})
 
-        # Check for public key in the packet
+        # Check for public key in the packet and track it
         if 'publicKey' in user or 'public_key' in user:
             pub_key = user.get('publicKey') or user.get('public_key')
-            logger.info(f"      🔑 Node has public key: {pub_key[:16]}..." if pub_key else "No key")
+            if pub_key:
+                # Convert to bytes if it's a hex string
+                if isinstance(pub_key, str):
+                    try:
+                        pub_key_bytes = bytes.fromhex(pub_key)
+                    except:
+                        pub_key_bytes = pub_key.encode() if len(pub_key) == 32 else None
+                else:
+                    pub_key_bytes = pub_key
+
+                if pub_key_bytes and len(pub_key_bytes) == 32:
+                    # Update PKC history with the public key
+                    hex_from_id = f"!{int(from_id):08x}" if from_id.isdigit() else from_id
+                    key_update = self.pkc_history.update_public_key(
+                        hex_from_id,
+                        pub_key_bytes,
+                        user.get('shortName', f"Node-{hex_from_id[:8]}")
+                    )
+                    if key_update.get("key_changed"):
+                        logger.info(f"      🔑 Node public key updated: {key_update['key_hash']} (update #{key_update['update_count']})")
+                    else:
+                        logger.info(f"      🔑 Node public key confirmed: {key_update['key_hash']}")
+                else:
+                    logger.info(f"      🔑 Node has invalid public key length: {len(pub_key_bytes) if pub_key_bytes else 0}")
 
         # Log full user dict to see what fields are available
         logger.debug(f"      Full user data: {user}")

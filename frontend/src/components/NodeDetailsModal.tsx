@@ -80,6 +80,12 @@ export const NodeDetailsModal: FC<NodeDetailsModalProps> = ({ node, onClose, onR
                 {node.role && (<span className="flex items-center gap-1"><User className="h-3 w-3" />{node.role}</span>)}
                 {node.hardware_model && (<span className="flex items-center gap-1"><Cpu className="h-3 w-3" />{node.hardware_model}</span>)}
               </div>
+              {(node.firmware_version || node.region) && (
+                <div className="mt-1 text-xs text-gray-500 flex items-center gap-3">
+                  {node.firmware_version && <span>FW: {node.firmware_version}</span>}
+                  {node.region && <span>Region: {node.region}</span>}
+                </div>
+              )}
             </div>
             {node.hop_count === 0 && (
               <SignalStrengthGauge rssi={node.rssi} quality={node.signal_quality} />

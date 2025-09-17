@@ -9,6 +9,7 @@ import { MessagesModal } from './components/MessagesModal';
 import { PacketDetailsModal } from './components/PacketDetailsModal';
 import { MapModal } from './components/MapModal';
 import { ChatPanel } from './components/ChatPanel';
+import { MetricsDashboard } from './components/MetricsDashboard';
 import type { DecodedPacket } from './utils/meshtasticDecoder';
 import { NodeInfo, TextMessage, Session, NetworkLink } from './types';
 import { NetworkViewer } from './components/NetworkViewer';
@@ -23,14 +24,15 @@ function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [localNodeId, setLocalNodeId] = useState<string | null>(null);
-  const [localNodeInfo, setLocalNodeInfo] = useState<{ short_name?: string; long_name?: string; hardware_model?: string } | null>(null);
+  const [localNodeInfo, setLocalNodeInfo] = useState<{ short_name?: string; long_name?: string; hardware_model?: string; firmware_version?: string; region?: string } | null>(null);
   const [packetModal, setPacketModal] = useState<DecodedPacket | null>(null);
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [isMessagesOpen, setIsMessagesOpen] = useState(false);
+  const [isMetricsOpen, setIsMetricsOpen] = useState(false);
   const rightPaneRef = useRef<HTMLDivElement | null>(null);
   // Removed resizable split; reserve for future network viz
   const [aliases, setAliases] = useState<AliasMap>({});
-  const [chatTargetId] = useState<string | null>(null);
+  const [chatTargetId, setChatTargetId] = useState<string | null>(null);
   const [testChannelIndex, setTestChannelIndex] = useState<number | null>(null);
   const [channelsInfo, setChannelsInfo] = useState<Array<{ index: number; name?: string; encrypted?: boolean }>>([]);
   const [autoRepliesEnabled, setAutoRepliesEnabled] = useState<boolean>(true);
@@ -107,7 +109,61 @@ function App() {
         }
       } catch {}
       setMessages(prev => [...prev.slice(-99), data]);
-      addEvent('message', `${data.from_name}: ${data.message.substring(0, 50)}`);
+
+      // Format: [HH:MM:SS]:[channel]:[source]:[dest if DM]: message
+      const time = new Date(data.timestamp).toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+
+      // Get channel name - channel index 0 = Primary, 1 = jasper, etc.
+      const channel = (data as any).channel;
+      const channelName = channel === 0 ? 'Primary' :
+                         channel === 1 ? 'jasper' :
+                         channel ? `Ch${channel}` : 'Primary';
+
+      // Check if it's a DM (not broadcast)
+      const isDM = data.to_id && data.to_id !== 'broadcast' && data.to_id !== '^all' && !data.to_id.startsWith('4294967');
+      const dest = isDM ? `:${data.to_name}` : '';
+
+      const eventText = `[${time}]:[${channelName}]:${data.from_name}${dest}: ${data.message.substring(0, 50)}`;
+      addEvent('message', eventText);
+    };
+
+    // Handler for encrypted packets (don't show in ticker)
+    const onEncryptedPacket = (data: any) => {
+      console.log('[WS] encrypted_packet', data);
+
+      // Add PKC failure to event ticker with diagnostics
+      if (data.message?.includes('PKC failed')) {
+        const fromNode = nodes.find(n => n.id === data.from_id);
+        const nodeName = fromNode?.short_name || data.from_id.substring(0, 8);
+
+        // Extract PKC diagnostics from message if available
+        let diagnostics = '';
+        const match = data.message.match(/\[Encrypted DM - PKC failed\]\s*(.*)/);
+        if (match && match[1]) {
+          diagnostics = ` - ${match[1]}`;
+        }
+
+        addEvent('message', `PKC decrypt failed from ${nodeName}${diagnostics}`);
+      }
+
+      // Still add to messages for debugging/monitoring
+      try {
+        const ts = Math.round(new Date(data.timestamp).getTime() / 1000);
+        const key = `${data.from_id}|${data.to_id}|encrypted|${ts}`;
+        const set = messageKeysRef.current;
+        if (set.has(key)) return;
+        set.add(key);
+        if (set.size > 1000) {
+          messageKeysRef.current = new Set(Array.from(set).slice(-800));
+        }
+      } catch {}
+      // Add to messages for packet monitoring
+      setMessages(prev => [...prev.slice(-99), data]);
     };
     const onPosition = (data: any) => {
       updateNodePosition(data.node_id, data.latitude, data.longitude, data.altitude);
@@ -161,6 +217,7 @@ function App() {
     };
     websocketService.on('node_update', onNodeUpdate);
     websocketService.on('text_message', onTextMessage);
+    websocketService.on('encrypted_packet', onEncryptedPacket);
     websocketService.on('position_update', onPosition);
     websocketService.on('telemetry', onTelemetry);
     websocketService.on('session_reset', onSessionReset);
@@ -438,6 +495,7 @@ function App() {
         }}
         onOpenMessages={() => setIsMessagesOpen(true)}
         onOpenMap={() => setIsMapOpen(true)}
+        onOpenMetrics={() => setIsMetricsOpen(true)}
       />
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left: Nodes */}
@@ -494,6 +552,27 @@ function App() {
             setIsMessagesOpen(false);
           }}
         />
+      )}
+
+      {isMetricsOpen && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-gray-900 w-11/12 h-5/6 max-w-7xl rounded-lg shadow-2xl border border-gray-700 flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b border-gray-700">
+              <h2 className="text-xl font-bold text-white">Network Metrics Dashboard</h2>
+              <button
+                onClick={() => setIsMetricsOpen(false)}
+                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <MetricsDashboard />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

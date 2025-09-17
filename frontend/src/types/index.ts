@@ -21,6 +21,9 @@ export interface NodeInfo {
   last_heard: string;
   is_online: boolean;
   signal_quality?: 'excellent' | 'good' | 'weak' | 'poor';
+  firmware_version?: string;
+  region?: string;
+  is_local?: boolean;
 }
 
 export interface TextMessage {

@@ -1,0 +1,11 @@
+{
+  "timestamp": "2025-09-17T00:18:03.044659",
+  "device_name": "rak4631",
+  "files_created": [
+    "rak4631_config_20250917_001803/full_config.yaml",
+    "rak4631_config_20250917_001803/device_info.txt",
+    "rak4631_config_20250917_001803/channel_urls.txt"
+  ],
+  "firmware": "2.6.11.60ec05e",
+  "hardware": "UNSET"
+}

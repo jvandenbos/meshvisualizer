@@ -1,0 +1,5 @@
+OS Error:
+  The serial device couldn't be opened, it might be in use by another process.
+  Please close any applications or webpages that may be using the device and try again.
+
+Original error: [Errno 35] Could not exclusively lock port /dev/cu.usbmodem2101: [Errno 35] Resource temporarily unavailable

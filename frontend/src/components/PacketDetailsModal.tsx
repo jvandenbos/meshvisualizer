@@ -219,7 +219,7 @@ export const PacketDetailsModal: FC<PacketDetailsModalProps> = ({ packet, onClos
             </summary>
             <div className="p-4 pt-0">
               <pre className="text-xs text-gray-500 bg-black/30 p-3 rounded-lg overflow-x-auto font-mono">
-                {JSON.stringify(JSON.parse(packet.raw), null, 2)}
+                {packet.raw ? JSON.stringify(JSON.parse(packet.raw), null, 2) : 'No raw data available'}
               </pre>
             </div>
           </details>

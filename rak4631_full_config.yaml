@@ -1,0 +1,74 @@
+# start of Meshtastic configure yaml
+channel_url: https://meshtastic.org/e/#CgcSAQE6AggNCh4SEHq8k3UYS8uLF_PoID_ytw4aBmphc3BlcjoCCCASDggBOAFAB0gBUB5YFGgB
+config:
+  bluetooth:
+    enabled: true
+    fixedPin: 602222
+    mode: FIXED_PIN
+  device:
+    nodeInfoBroadcastSecs: 10800
+    tzdef: PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00
+  display:
+    screenOnSecs: 600
+    wakeOnTapOrMotion: true
+  lora:
+    channelNum: 20
+    hopLimit: 7
+    region: US
+    sx126xRxBoostedGain: true
+    txEnabled: true
+    txPower: 30
+    usePreset: true
+  mqtt:
+    encryptionEnabled: false
+  network:
+    ntpServer: meshtastic.pool.ntp.org
+  position:
+    broadcastSmartMinimumDistance: 100
+    broadcastSmartMinimumIntervalSecs: 30
+    gpsMode: ENABLED
+    gpsUpdateInterval: 120
+    positionBroadcastSecs: 900
+    positionBroadcastSmartEnabled: true
+    positionFlags: 811
+  power:
+    lsSecs: 300
+    minWakeSecs: 10
+    sdsSecs: 4294967295
+    waitBluetoothSecs: 60
+  security:
+    privateKey: base64:iJzxg8kuOzQiJBqNTmLOJaPNrvBVWL0rOexVhGoFy2Q=
+    publicKey: base64:hn01KwbkKYTJxZQbHsf94TpBjaX7AUswmJAjRarCQw0=
+    serialEnabled: true
+location:
+  alt: 199
+  lat: 48.797451
+  lon: -123.627636
+module_config:
+  ambientLighting:
+    blue: 106
+    current: 10
+    green: 6
+    red: 29
+  detectionSensor:
+    detectionTriggerType: LOGIC_HIGH
+    minimumBroadcastSecs: 45
+  externalNotification:
+    active: true
+    alertMessage: true
+    enabled: true
+    nagTimeout: 60
+    output: 36
+    outputMs: 1000
+  mqtt:
+    address: mqtt.meshtastic.org
+    encryptionEnabled: true
+    password: large4cats
+    root: msh/US
+    username: meshdev
+  telemetry:
+    deviceUpdateInterval: 2147483647
+owner: jsp-server-msgmeHELP
+owner_short: jsp0
+ringtone: 24:d=32,o=5,b=565:f6,p,f6,4p,p,f6,p,f6,2p,p,b6,p,b6,p,b6,p,b6,p,b,p,b,p,b,p,b,p,b,p,b,p,b,p,b,1p.,2p.,p
+

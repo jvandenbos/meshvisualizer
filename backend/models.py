@@ -34,6 +34,9 @@ class NodeInfo(BaseModel):
     last_heard: datetime
     is_online: bool = True
     signal_quality: Optional[SignalQuality] = None
+    firmware_version: Optional[str] = None
+    region: Optional[str] = None
+    is_local: Optional[bool] = False
 
 class MeshPacket(BaseModel):
     from_id: str

@@ -1,0 +1,202 @@
+{
+  "!46b1b779": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T12:46:09.515851",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 21,
+    "last_failure": "2025-09-17T15:12:11.835996"
+  },
+  "!6dc5aab3": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:01:44.585276",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 24,
+    "last_failure": "2025-09-17T15:12:56.288880"
+  },
+  "!054e3b0a": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:01:44.586362",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 4,
+    "last_failure": "2025-09-17T14:32:25.231441"
+  },
+  "!5248e8e1": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:01:44.587538",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 1,
+    "last_failure": "2025-09-17T14:01:44.587540"
+  },
+  "!54e05d0c": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:01:44.589245",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 7,
+    "last_failure": "2025-09-17T15:07:51.848970"
+  },
+  "!117cbdf3": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:01:44.621409",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 1,
+    "last_failure": "2025-09-17T14:01:44.621411"
+  },
+  "!7ab92580": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:01:44.646170",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 4,
+    "last_failure": "2025-09-17T15:09:53.291443"
+  },
+  "!8abdd38a": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:11:43.793532",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 2,
+    "last_failure": "2025-09-17T14:27:39.860872"
+  },
+  "!0821c71f": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:12:10.371496",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 3,
+    "last_failure": "2025-09-17T14:40:27.417919"
+  },
+  "!67a84a84": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:13:45.231233",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 1,
+    "last_failure": "2025-09-17T14:13:45.231246"
+  },
+  "!44ab51b1": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:15:41.826857",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 1,
+    "last_failure": "2025-09-17T14:15:41.826872"
+  },
+  "!4955c0fd": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:19:53.622779",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 2,
+    "last_failure": "2025-09-17T14:35:12.956599"
+  },
+  "!cfc5c350": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:23:43.992481",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 2,
+    "last_failure": "2025-09-17T14:54:20.491018"
+  },
+  "!a2eb7854": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:25:02.160874",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 1,
+    "last_failure": "2025-09-17T14:25:02.160883"
+  },
+  "!5a3df77c": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:32:12.454747",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 1,
+    "last_failure": "2025-09-17T14:32:12.454757"
+  },
+  "!7990e1da": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:42:28.814920",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 1,
+    "last_failure": "2025-09-17T14:42:28.814930"
+  },
+  "!43e63896": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:49:24.765895",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 1,
+    "last_failure": "2025-09-17T14:49:24.765904"
+  },
+  "!db756aec": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T14:55:30.189296",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 1,
+    "last_failure": "2025-09-17T14:55:30.189307"
+  },
+  "!036dd18f": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T15:02:05.731604",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 1,
+    "last_failure": "2025-09-17T15:02:05.731615"
+  },
+  "!d064a3d5": {
+    "node_name": null,
+    "current_key": null,
+    "last_updated": null,
+    "first_seen": "2025-09-17T15:11:53.805495",
+    "history": [],
+    "update_count": 0,
+    "decryption_failures": 1,
+    "last_failure": "2025-09-17T15:11:53.805506"
+  }
+}

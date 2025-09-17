@@ -63,3 +63,5 @@ cache/
 uploads/*.db
 *.sqlite
 *.sqlite3
+meshtastic-firmware-source/
+meshtastic-python-source/

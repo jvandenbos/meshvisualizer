@@ -1,6 +1,6 @@
 import type { FC } from 'react';
 import { useState, useMemo } from 'react';
-import { PlayCircle, StopCircle, RefreshCw, Activity, Users, MessageSquare, Map } from 'lucide-react';
+import { PlayCircle, StopCircle, RefreshCw, Activity, Users, MessageSquare, Map, BarChart3 } from 'lucide-react';
 import { Session } from '../types';
 
 interface SessionControlsProps {
@@ -8,7 +8,7 @@ interface SessionControlsProps {
   isConnected: boolean;
   nodeCount: number;
   messageCount: number;
-  localNodeInfo?: { short_name?: string; long_name?: string; hardware_model?: string } | null;
+  localNodeInfo?: { short_name?: string; long_name?: string; hardware_model?: string; firmware_version?: string; region?: string } | null;
   onNewSession: () => void;
   onConnect: () => void;
   onDisconnect: () => void;
@@ -19,6 +19,7 @@ interface SessionControlsProps {
   onToggleAutoReplies?: (enabled: boolean) => void;
   onOpenMessages?: () => void;
   onOpenMap?: () => void;
+  onOpenMetrics?: () => void;
 }
 
 const SessionControls: FC<SessionControlsProps> = ({
@@ -36,7 +37,8 @@ const SessionControls: FC<SessionControlsProps> = ({
   autoRepliesEnabled,
   onToggleAutoReplies,
   onOpenMessages,
-  onOpenMap
+  onOpenMap,
+  onOpenMetrics
 }) => {
   const [tcInput, setTcInput] = useState<string>(testChannelIndex !== null && testChannelIndex !== undefined ? String(testChannelIndex) : '');
   const encStatus = useMemo(() => {
@@ -119,6 +121,17 @@ const SessionControls: FC<SessionControlsProps> = ({
               Map
             </button>
           )}
+
+          {onOpenMetrics && (
+            <button
+              onClick={onOpenMetrics}
+              className="flex items-center gap-2 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-md transition-colors text-sm"
+              title="Network Metrics Dashboard"
+            >
+              <BarChart3 className="w-4 h-4" />
+              Metrics
+            </button>
+          )}
         </div>
       </div>
       
@@ -150,14 +163,23 @@ const SessionControls: FC<SessionControlsProps> = ({
         
         <div className="flex items-center gap-4">
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-          <span className="text-sm text-gray-400">
-            {isConnected ?
-              (localNodeInfo ?
-                `Connected to ${localNodeInfo.long_name || localNodeInfo.short_name || 'Local Node'}` :
-                'Connected') :
-              'Disconnected'
-            }
-          </span>
+          <div className="flex flex-col">
+            <span className="text-sm text-gray-400">
+              {isConnected ?
+                (localNodeInfo ?
+                  `Connected to ${localNodeInfo.long_name || localNodeInfo.short_name || 'Local Node'}` :
+                  'Connected') :
+                'Disconnected'
+              }
+            </span>
+            {isConnected && localNodeInfo && (
+              <span className="text-xs text-gray-500">
+                {localNodeInfo.hardware_model && `${localNodeInfo.hardware_model}`}
+                {localNodeInfo.firmware_version && ` • FW ${localNodeInfo.firmware_version}`}
+                {localNodeInfo.region && ` • ${localNodeInfo.region}`}
+              </span>
+            )}
+          </div>
           {onSetTestChannel && (
             <div className="flex items-center gap-2 text-xs text-gray-300">
               <span>Private ch:</span>

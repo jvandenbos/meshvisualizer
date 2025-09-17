@@ -1,0 +1,18 @@
+{
+  "timestamp": "2025-09-17T00:08:04.112185",
+  "device_info": {
+    "firmware_version": "2.6.11.60ec05e",
+    "device_state_version": 24
+  },
+  "channels": [],
+  "security": {},
+  "local_node": {
+    "node_num": 1109198442,
+    "firmware_version": null,
+    "region": null,
+    "hw_model": null,
+    "has_private_key": false,
+    "has_public_key": false
+  },
+  "radio_config": {}
+}

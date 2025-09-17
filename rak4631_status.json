@@ -1,0 +1,13 @@
+{
+    "connected": true,
+    "local_node_id": "1109198442",
+    "local_node_info": {
+        "short_name": "jsp0",
+        "long_name": "jsp-server-msgmeHELP",
+        "hardware_model": "RAK4631",
+        "firmware_version": "2.6.11.60ec05e",
+        "region": "Unknown"
+    },
+    "test_channel_index": null,
+    "auto_replies_enabled": true
+}

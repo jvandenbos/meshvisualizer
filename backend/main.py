@@ -190,6 +190,12 @@ async def handle_node_info(data: Dict):
             node.hardware_model = raw_node_data.get("hardware_model")
         if raw_node_data.get("role"):
             node.role = raw_node_data.get("role")
+        if raw_node_data.get("firmware_version"):
+            node.firmware_version = raw_node_data.get("firmware_version")
+        if raw_node_data.get("region"):
+            node.region = raw_node_data.get("region")
+        # Update is_local flag
+        node.is_local = is_local
 
         # Update signal/hop info if provided
         if data.get("rssi") is not None:
@@ -238,7 +244,10 @@ async def handle_node_info(data: Dict):
             snr=data.get("snr"),
             hop_count=data.get("hop_count", 0),
             signal_quality=signal_quality,
-            last_heard=data["timestamp"]
+            last_heard=data["timestamp"],
+            firmware_version=raw_node_data.get("firmware_version"),
+            region=raw_node_data.get("region"),
+            is_local=is_local
         )
 
         state.live_nodes[node_id] = node
@@ -962,19 +971,55 @@ async def disconnect_device():
         return {"status": "disconnected"}
     return {"status": "not_connected"}
 
+@app.get("/api/pkc/status")
+async def get_pkc_status():
+    """Get PKC key manager status"""
+    if state.meshtastic and hasattr(state.meshtastic, 'pkc_manager'):
+        return state.meshtastic.pkc_manager.get_status()
+    return {"error": "PKC manager not available"}
+
+@app.post("/api/pkc/refresh/{node_id}")
+async def refresh_node_key(node_id: str):
+    """Manually trigger PKC key refresh for a specific node"""
+    if not state.meshtastic or not hasattr(state.meshtastic, 'pkc_manager'):
+        raise HTTPException(status_code=503, detail="PKC manager not available")
+
+    # Ensure proper node ID format
+    if not node_id.startswith('!'):
+        node_id = f"!{node_id}"
+
+    success = await state.meshtastic.pkc_manager.refresh_node_key(node_id)
+    if success:
+        return {"status": "refresh_initiated", "node_id": node_id}
+    else:
+        return {"status": "refresh_blocked", "node_id": node_id,
+                "reason": "Node may be in backoff period or exceeded retry limit"}
+
+@app.post("/api/pkc/reset")
+async def reset_pkc_tracking():
+    """Reset all PKC tracking data (use with caution)"""
+    if state.meshtastic and hasattr(state.meshtastic, 'pkc_manager'):
+        state.meshtastic.pkc_manager.clear_all()
+        return {"status": "pkc_tracking_reset"}
+    return {"error": "PKC manager not available"}
+
 @app.get("/api/device/status")
 async def get_device_status():
     """Get device connection status"""
     local_node_info = None
     if state.meshtastic and state.meshtastic.local_node_id:
         # Get the local node info from our live nodes
+        # Convert decimal ID to hex format used in live_nodes
         local_node_id = state.meshtastic.local_node_id
-        if local_node_id in state.live_nodes:
-            node = state.live_nodes[local_node_id]
+        hex_node_id = f"!{int(local_node_id):08x}" if local_node_id.isdigit() else local_node_id
+        if hex_node_id in state.live_nodes:
+            node = state.live_nodes[hex_node_id]
             local_node_info = {
                 "short_name": node.short_name,
                 "long_name": node.long_name,
-                "hardware_model": node.hardware_model
+                "hardware_model": node.hardware_model,
+                "firmware_version": getattr(node, 'firmware_version', None),
+                "region": getattr(node, 'region', None)
             }
 
     return {
@@ -1022,6 +1067,104 @@ async def set_server_settings(payload: Dict[str, Any]):
     if are is not None:
         state.auto_replies_enabled = bool(are)
     return {"auto_replies_enabled": state.auto_replies_enabled}
+
+@app.get("/api/metrics")
+async def get_network_metrics():
+    """Get comprehensive network metrics and analytics"""
+    from backend.network_metrics import NetworkMetrics
+
+    metrics_calculator = NetworkMetrics(db=state.db)
+
+    # Convert state data to list format for metrics calculation
+    nodes_list = list(state.live_nodes.values())
+    links_list = list(state.network_links.values())
+    messages_list = state.live_messages
+
+    # Calculate metrics
+    metrics = await metrics_calculator.calculate_metrics(nodes_list, links_list, messages_list)
+
+    return metrics
+
+@app.get("/api/metrics/summary")
+async def get_metrics_summary():
+    """Get a quick summary of network health"""
+    total_nodes = len(state.live_nodes)
+    active_nodes = sum(1 for n in state.live_nodes.values() if hasattr(n, 'last_heard'))
+
+    # Calculate average RSSI for direct connections
+    rssi_values = [n.rssi for n in state.live_nodes.values() if n.rssi and n.hop_count == 0]
+    avg_rssi = sum(rssi_values) / len(rssi_values) if rssi_values else None
+
+    # Count nodes by hop distance
+    hop_distribution = {}
+    for node in state.live_nodes.values():
+        hop = node.hop_count if node.hop_count and node.hop_count < 999 else 'unknown'
+        hop_key = f"{hop}_hop" if hop != 'unknown' else hop
+        hop_distribution[hop_key] = hop_distribution.get(hop_key, 0) + 1
+
+    return {
+        "total_nodes": total_nodes,
+        "active_nodes": active_nodes,
+        "average_rssi": avg_rssi,
+        "hop_distribution": hop_distribution,
+        "messages_last_hour": len([m for m in state.live_messages if hasattr(m, 'timestamp')]),
+        "network_health": "good" if avg_rssi and avg_rssi > -90 else "fair" if avg_rssi and avg_rssi > -100 else "poor"
+    }
+
+@app.get("/api/pkc/status")
+async def get_pkc_status():
+    """Get PKC (Public Key Cryptography) status and diagnostics"""
+    if not state.meshtastic:
+        raise HTTPException(status_code=503, detail="Meshtastic not connected")
+
+    # Return both PKC manager and history status
+    return {
+        "history": state.meshtastic.pkc_history.get_summary() if state.meshtastic.pkc_history else None,
+        "manager": state.meshtastic.pkc_manager.get_status() if state.meshtastic.pkc_manager else None
+    }
+
+@app.get("/api/pkc/node/{node_id}")
+async def get_node_pkc_info(node_id: str):
+    """Get PKC history and diagnostics for a specific node"""
+    if not state.meshtastic or not state.meshtastic.pkc_history:
+        raise HTTPException(status_code=503, detail="PKC history not available")
+
+    # Ensure node_id is in correct format
+    node_id = ensure_hex_id(node_id)
+
+    info = state.meshtastic.pkc_history.get_full_history(node_id)
+    if not info:
+        return {"node_id": node_id, "status": "No PKC data available"}
+
+    return info
+
+@app.get("/api/pkc/failures")
+async def get_pkc_failures():
+    """Get list of nodes with PKC decryption failures"""
+    if not state.meshtastic or not state.meshtastic.pkc_history:
+        raise HTTPException(status_code=503, detail="PKC history not available")
+
+    # Get all nodes with failures
+    failures = []
+    for node_id, data in state.meshtastic.pkc_history.node_keys.items():
+        if data.get("decryption_failures", 0) > 0:
+            failures.append({
+                "node_id": node_id,
+                "node_name": data.get("node_name"),
+                "failures": data["decryption_failures"],
+                "last_failure": data.get("last_failure"),
+                "has_key": bool(data.get("current_key")),
+                "key_age_hours": state.meshtastic.pkc_history.get_key_info(node_id)["age_hours"] if data.get("current_key") else None
+            })
+
+    # Sort by failure count
+    failures.sort(key=lambda x: x["failures"], reverse=True)
+
+    return {
+        "total_nodes_with_failures": len(failures),
+        "total_failures": sum(f["failures"] for f in failures),
+        "nodes": failures
+    }
 
 # Serve static files (for production)
 # Uncomment when frontend build is ready

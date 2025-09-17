@@ -1,0 +1,11 @@
+{
+  "timestamp": "2025-09-17T00:19:29.099051",
+  "device_name": "tdeck",
+  "files_created": [
+    "tdeck_config_20250917_001929/full_config.yaml",
+    "tdeck_config_20250917_001929/device_info.txt",
+    "tdeck_config_20250917_001929/channel_urls.txt"
+  ],
+  "firmware": "2.6.11.60ec05e",
+  "hardware": "UNSET"
+}

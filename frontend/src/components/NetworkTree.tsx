@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, ReactElement } from 'react';
 import { ChevronRight, ChevronDown, Radio, Router, Smartphone, Cpu } from 'lucide-react';
 import type { NodeInfo, NetworkLink } from '../types';
 
@@ -191,7 +191,7 @@ export const NetworkTree = ({ nodes, links, localNodeId }: NetworkTreeProps) => 
     setExpanded(newExpanded);
   };
 
-  const renderNode = (treeNode: TreeNode): JSX.Element => {
+  const renderNode = (treeNode: TreeNode): ReactElement => {
     const { node, children, depth } = treeNode;
     const isExpanded = expanded.has(node.id);
     const hasChildren = children.length > 0;

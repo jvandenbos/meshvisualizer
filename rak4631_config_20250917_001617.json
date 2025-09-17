@@ -1,0 +1,24 @@
+{
+  "timestamp": "2025-09-17T00:16:13.799705",
+  "device_info": {
+    "firmware_version": "2.6.11.60ec05e",
+    "device_state_version": 24
+  },
+  "channels": [],
+  "security": {},
+  "local_node": {
+    "node_num": 1109198442,
+    "node_hex": "!421d066a",
+    "min_app_version": 30200,
+    "has_private_key": false,
+    "has_public_key": false
+  },
+  "radio_config": {},
+  "lora_config": {},
+  "display_config": {},
+  "network_config": {},
+  "position_config": {},
+  "power_config": {},
+  "bluetooth_config": {},
+  "device_config": {}
+}
