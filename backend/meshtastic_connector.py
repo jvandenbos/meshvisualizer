@@ -9,6 +9,7 @@ import logging
 from backend.models import NodeInfo, MeshPacket, TextMessage, NetworkLink
 from backend.pkc_key_manager import PKCKeyManager
 from backend.pkc_key_history import PKCKeyHistory
+from backend.hop_count_resolver import get_hop_resolver
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,8 @@ class MeshtasticConnector:
         self.pkc_manager = PKCKeyManager(max_retries=2, backoff_minutes=30)
         # Initialize PKC key history tracker
         self.pkc_history = PKCKeyHistory()
+        # Initialize hop count resolver
+        self.hop_resolver = get_hop_resolver()
         # Channel names mapping
         self.channel_names = {0: "Primary"}  # Default primary channel
         
@@ -112,6 +115,9 @@ class MeshtasticConnector:
             self.local_node_id = str(interface.myInfo.my_node_num)
             self.local_node_hex_id = f"!{int(self.local_node_id):08x}"  # Store hex format with padding
             logger.info(f"Local node ID: {self.local_node_id} (hex: {self.local_node_hex_id})")
+
+            # Set local node for hop resolver
+            self.hop_resolver.set_local_node(self.local_node_hex_id)
 
             # Debug: Check what we have
             if hasattr(interface.myInfo, 'user'):
@@ -421,17 +427,14 @@ class MeshtasticConnector:
             
             # Add common packet info
             if data:
-                # Calculate hop count correctly: hopStart - hopLimit
-                # hopStart is the initial value (e.g., 3), hopLimit decreases with each hop
+                # Use the enhanced hop resolver for intelligent hop count calculation
+                hop_count = self.hop_resolver.calculate_hop_count(packet)
+
+                # Log if we resolved an unknown
                 hop_start = packet.get('hopStart', 0)
-                hop_limit = packet.get('hopLimit', 0)
-                # Only calculate if we have hop information, otherwise use None
-                if hop_start > 0:
-                    hop_count = hop_start - hop_limit
-                else:
-                    # No hop information available - could be direct connection or unknown
-                    hop_count = None
-                
+                if hop_start == 0 and hop_count is not None:
+                    logger.debug(f"Hop resolver estimated {hop_count} hops for packet without hopStart")
+
                 data.update({
                     "rssi": packet.get('rxRssi') or packet.get('rx_rssi'),  # Try both camelCase and snake_case
                     "snr": packet.get('rxSnr') or packet.get('rx_snr'),
@@ -533,6 +536,11 @@ class MeshtasticConnector:
     def process_node_info(self, packet: Dict, from_id: str) -> Dict:
         """Process node info packet"""
         user = packet.get('user', {})
+
+        # Update hop resolver with NodeInfo packet
+        if from_id:
+            hex_from_id = f"!{int(from_id):08x}" if from_id.isdigit() else from_id
+            self.hop_resolver.update_from_nodeinfo(hex_from_id, packet)
 
         # Check for public key in the packet and track it
         if 'publicKey' in user or 'public_key' in user:
